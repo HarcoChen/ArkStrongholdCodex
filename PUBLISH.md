@@ -5,7 +5,7 @@
 1. 源码仓库分别为HarcoChen/ArkStrongholdCodex与HarcoChen/dsh-ArkStronghold。DSH固定核心Git提交，协议修正只维护核心一处。
 2. 两仓库相邻，分别npm ci --ignore-scripts；先在核心npm run build，再在DSH npm run build。
 3. 核心运行node tools/package.mjs /absolute/release-output。打包需要系统zip命令，客户端运行不需要。脚本拒绝覆盖已有归档，输出两个独立zip及SHA256清单。
-4. 在各仓库创建0.2.0-alpha.1预览Release并附对应zip。对应源码已附在zip，且仓库源码保留GPL许可；不提交游戏数据、凭据、轨迹、node_modules。
+4. 在各仓库创建0.2.0-alpha.1预览Release并附对应zip。对应源码已附在zip，且仓库源码保留GPL许可；不提交游戏数据、凭据、轨迹、node_modules；dist运行文件与许可需随仓库提交，保证插件仓库安装可用。
 5. 安装指向解压目录。源码构建可分别克隆两仓库；DSH的npm ci会安装固定提交的核心，不依赖相邻目录。发布打包脚本则约定作者将两源码仓库相邻放置。
 
 ## 可直接使用的Release说明

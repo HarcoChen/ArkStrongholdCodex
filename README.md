@@ -6,7 +6,7 @@ DSH 使用 Cordis 原生工具；Codex 插件包通过常驻 MCP 提供同样的
 
 ## 使用与安装
 
-需要 Node 22+。发布 zip 包已包含运行依赖与 Worker 文件，解压后无需 npm install；首次对局会从所配置站点读取公开规则数据和客户端模块，在内存中使用，无需本地引擎 checkout 或游戏美术。
+需要 Node 22+。仓库与发布zip均包含运行依赖和Worker文件，可直接安装，无需npm install；首次对局会从所配置站点读取公开规则数据和客户端模块，在内存中使用，无需本地引擎 checkout 或游戏美术。
 
 源码执行 `node tools/configure.mjs`，发布包执行 `node configure.mjs`：
 
