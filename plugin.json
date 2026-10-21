@@ -3,10 +3,28 @@
   "name": "ark-play",
   "version": "0.2.0-alpha.1",
   "description": "Ark Play gameplay tools: compact views and explicit actions over the game site connection.",
+  "author": {
+    "name": "HarcoChen",
+    "url": "https://github.com/HarcoChen"
+  },
+  "homepage": "https://github.com/HarcoChen/ArkStrongholdCodex",
+  "repository": "https://github.com/HarcoChen/ArkStrongholdCodex",
   "license": "GPL-3.0-or-later",
+  "keywords": ["arknights", "stronghold-protocol", "gameplay", "agent-tools"],
   "extensions": {
     "com.openai": {
-      "requires_local_executor": true
+      "requires_local_executor": true,
+      "interface": {
+        "displayName": "Ark Stronghold",
+        "shortDescription": "Play Stronghold Protocol solo games",
+        "longDescription": "Play solo games on a trusted Stronghold Protocol site using compact views, explicit actions and public card information. Requires Node.js 22 or later and a configured game site. Recording, storage and authentication are controlled by the site.",
+        "developerName": "HarcoChen",
+        "category": "Productivity",
+        "capabilities": ["Play solo games", "Inspect public game state", "Look up cards and rules"],
+        "websiteURL": "https://github.com/HarcoChen/ArkStrongholdCodex",
+        "supportURL": "https://github.com/HarcoChen/ArkStrongholdCodex/issues",
+        "defaultPrompt": ["用 ark_start 开一局深渊，根据局面和公开说明决策，玩到自然结束。"]
+      }
     }
   }
 }

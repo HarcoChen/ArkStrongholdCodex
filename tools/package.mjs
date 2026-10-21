@@ -6,7 +6,7 @@ import {join,resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 const SOURCE=['src','tools','index.mjs','package.json','package-lock.json','plugin.json','mcp.json','.codex-plugin',
-  'cordis.patch.yml','LICENSE','README.md','PUBLISH.md'];
+  '.agents/plugins/marketplace.json','cordis.patch.yml','LICENSE','README.md','PUBLISH.md'];
 export async function copySource(from,to) {
   await mkdir(to,{recursive:true});
   for(const name of SOURCE) {
@@ -25,6 +25,8 @@ export async function packageClient({kind,root,sharedRoot=root,output}) {
     for(const file of ['README.md','LICENSE','PUBLISH.md'])await copyFile(join(root,file),join(stage,file));
     await copyFile(join(sharedRoot,'tools/configure.mjs'),join(stage,'configure.mjs'));
     if(kind==='codex') {
+      await mkdir(join(stage,'.agents/plugins'),{recursive:true});
+      await copyFile(join(root,'.agents/plugins/marketplace.json'),join(stage,'.agents/plugins/marketplace.json'));
       for(const file of ['plugin.json','mcp.json'])await copyFile(join(root,file),join(stage,file));
       await cp(join(root,'.codex-plugin'),join(stage,'.codex-plugin'),{recursive:true});
       await cp(join(root,'dist'),join(stage,'dist'),{recursive:true});

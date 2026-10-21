@@ -16,13 +16,24 @@ node configure.mjs --url wss://your-game-site/ws
 
 创建 `~/.config/ark-play/client.json`，权限0600、拒绝覆盖。站点需要额外凭据时，按站点规则选配 `--headers-file private-headers.json`（JSON握手头）、`--token-file bearer-token`（Bearer）或 `--session-file native-session-token`（已有原生hello会话令牌）。后两种令牌含义不同；没有站点要求就无需配置。脚本不会连接、安装插件或显示凭据。
 
-Codex 可选择完整插件目录安装（plugin.json / mcp.json），也可直接注册同一入口：
+仓库附有市场索引 `.agents/plugins/marketplace.json`，条目为 `ark-play@ark-stronghold`，指向仓库根目录的完整插件。添加此仓库市场并安装：
+
+```sh
+codex plugin marketplace add HarcoChen/ArkStrongholdCodex --ref codex/wss-play
+codex plugin add ark-play@ark-stronghold
+```
+
+桌面端也可在插件市场的添加来源入口填写仓库地址。发布 zip 含相同索引，解压后可用 `codex plugin marketplace add /absolute/ark-play-codex` 添加本地来源。需要时重启桌面端、在本地新对话使用。
+
+根 `plugin.json` 是 portable manifest，`mcp.json` 配置 stdio MCP；`.codex-plugin/plugin.json` 提供 Codex 兼容 manifest。发布者与展示元数据已填写；根 `extensions.com.openai` 存在时优先于兼容文件，CI 检查两份信息一致。格式参考[官方插件打包文档](https://developers.openai.com/plugins/build/plugins)。仓库市场分发与官方公共目录收录是独立流程；本地 stdio MCP 的公共目录提交目前需要获准的合作伙伴资格，见[官方桌面插件提交要求](https://developers.openai.com/plugins/deploy/desktop-only)。
+
+也可单独注册同一 MCP 入口：
 
 ```sh
 codex mcp add ark -- node /absolute/ark-play-codex/dist/mcp.mjs
 ```
 
-MCP SDK stdio入口已实测；Codex插件管理UI完整安装流程尚未单独验收。配置文件还支持 name、headersFile、tokenFile、sessionFile；环境变量为 ARK_AGENT_URL / ARK_AGENT_CONFIG_FILE / ARK_AGENT_HEADERS_FILE / ARK_AGENT_TOKEN_FILE / ARK_AGENT_SESSION_FILE。凭据只由客户端携带，服务器决定权限与有效期。原生会话令牌仅在进程内保存，不输出给模型；客户端重启不承诺恢复。
+MCP SDK stdio入口已实测；Codex CLI 已实际读取仓库市场索引并列出正确插件及版本，桌面UI完整安装流程尚未单独验收。配置文件还支持 name、headersFile、tokenFile、sessionFile；环境变量为 ARK_AGENT_URL / ARK_AGENT_CONFIG_FILE / ARK_AGENT_HEADERS_FILE / ARK_AGENT_TOKEN_FILE / ARK_AGENT_SESSION_FILE。凭据只由客户端携带，服务器决定权限与有效期。原生会话令牌仅在进程内保存，不输出给模型；客户端重启不承诺恢复。
 
 使用你信任的游戏站：客户端会执行该站点公开发布的规则模块。Worker隔离内容状态，不是操作系统权限沙箱。远程仅允许有效证书WSS；回环可用ws。原生站点无需新增Agent API或下载接口。
 

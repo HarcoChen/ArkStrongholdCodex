@@ -19,6 +19,19 @@ npm run package -- results/releases
 
 新版本同步package.json、package-lock.json、plugin.json、.codex-plugin/plugin.json并重建dist后提交。用当前提交创建对应v版本Tag和Release；已有资产不会被覆盖，失败重跑前检查同名资产。DSH独立打包与npm发布见其仓库说明。
 
+## Codex 插件与市场文件
+
+- 根 `plugin.json`：portable 插件 manifest，包含发布者、版本与 `extensions.com.openai.interface` 展示信息。
+- `.codex-plugin/plugin.json`：兼容 manifest，指向根 `mcp.json`，保持展示信息一致；根 OpenAI extension 存在时不会合并此兼容文件。
+- 根 `mcp.json`：内置 stdio 服务入口 `${PLUGIN_ROOT}/dist/mcp.mjs`。
+- `.agents/plugins/marketplace.json`：仓库市场索引，市场 `ark-stronghold`、插件 `ark-play`，本地来源 `./` 指向市场仓库根目录。必须保留隐藏目录；zip 同样包含它。
+
+用户可运行 `codex plugin marketplace add HarcoChen/ArkStrongholdCodex --ref codex/wss-play`，然后 `codex plugin add ark-play@ark-stronghold`。解压 zip 后也可将解压目录作为本地市场添加。仓库默认分支当前是 `codex/wss-play`；改分支或发布稳定 tag 时相应更新安装命令的 `--ref`。
+
+CI 审查两种 manifest 的身份、版本、展示信息、MCP 路径，以及市场条目的名称、来源与安装策略。本地另以 Codex CLI 0.163.0 读取市场，确认列出 `ark-play@ark-stronghold`。这些检查不等于桌面 UI 安装或官方目录审核。
+
+当前交付的是自建仓库市场。若提交到 OpenAI 公共插件目录，本地 stdio MCP 目前仅面向已获准的合作伙伴，需按[官方 desktop-only 流程](https://developers.openai.com/plugins/deploy/desktop-only)确认资格并审核；公开 GitHub 仓库或生成 Release 不会自动上架。不预填虚构的隐私网址、审核录像或准入状态。
+
 ## 可直接使用的Release说明
 
 Ark Play首个原生游戏站对局预览版：Codex插件与DSH原生插件共用原生/ws适配，提供紧凑局面、明确动作批量、卡牌查询与后台原生战斗计算。采集、保存、导出、账号鉴权均交由游戏站，插件不下载轨迹。
