@@ -40331,7 +40331,7 @@ var StdioServerTransport = class {
   }
 };
 
-// src/rpc.mjs
+// node_modules/@arkstrongholdrl/ark-play-core/src/rpc.mjs
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -40347,7 +40347,7 @@ var import_websocket = __toESM(require_websocket(), 1);
 var import_websocket_server = __toESM(require_websocket_server(), 1);
 var wrapper_default = import_websocket.default;
 
-// src/site.mjs
+// node_modules/@arkstrongholdrl/ark-play-core/src/site.mjs
 import { createHash } from "node:crypto";
 import { Worker } from "node:worker_threads";
 var FILES = ["chess", "enemies", "tokens", "stages", "waves", "bonds", "items", "garrisons", "bands", "effects", "backups", "bosses"];
@@ -40452,10 +40452,10 @@ var SiteRuntime = class {
   }
 };
 
-// src/native-view.mjs
+// node_modules/@arkstrongholdrl/ark-play-core/src/native-view.mjs
 var VIEW = "ark-play-native-compact/v1";
 function canAct(pub, own2, myId, result) {
-  if (!pub || !own2 || result || !own2.alive) return false;
+  if (!pub || !own2 || result || !own2.alive || pub.paused) return false;
   if (own2.personalChoice) return true;
   if (pub.phase === "INFO_CHECK") return !pub.players.find((p) => p.playerId === myId)?.ready;
   if (pub.phase === "BAND_DRAFT") return pub.draft?.turn === myId && !pub.draft.picks[myId];
@@ -40496,6 +40496,7 @@ function projectNative({ pub, own: own2, myId, result, revision, room, runtime: 
     phase: pub.phase,
     round: pub.round,
     terminal: !!result,
+    paused: !!pub.paused,
     canAct: canAct(pub, own2, myId, result),
     me: {
       hp: own2.lp,
@@ -40540,7 +40541,7 @@ function projectNative({ pub, own: own2, myId, result, revision, room, runtime: 
   } };
 }
 
-// src/rpc.mjs
+// node_modules/@arkstrongholdrl/ark-play-core/src/rpc.mjs
 var pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 var PUBLIC_KEYS = [
   "phase",
@@ -40605,6 +40606,34 @@ var GameClient = class {
     this.nextSend = 0;
     this.combatQueue = [];
     this.authorities = /* @__PURE__ */ new Set();
+    this.stateWaiters = /* @__PURE__ */ new Set();
+  }
+  wake() {
+    for (const notify of [...this.stateWaiters]) notify();
+  }
+  fail(message) {
+    this.siteError = String(message);
+    this.wake();
+  }
+  changed(signal) {
+    signal?.throwIfAborted();
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        this.stateWaiters.delete(notify);
+        signal?.removeEventListener("abort", abort);
+      };
+      const notify = () => {
+        cleanup();
+        resolve();
+      };
+      const abort = () => {
+        cleanup();
+        reject(signal.reason);
+      };
+      this.stateWaiters.add(notify);
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    });
   }
   update(key, value) {
     if (JSON.stringify(this[key]) !== JSON.stringify(value)) {
@@ -40612,6 +40641,7 @@ var GameClient = class {
       this.revision++;
     }
     this.lastPush = Date.now();
+    this.wake();
   }
   receive(m) {
     if (m.t === "welcome") {
@@ -40672,7 +40702,7 @@ var GameClient = class {
         try {
           this.receive(JSON.parse(bytes.toString()));
         } catch {
-          this.siteError = "Unsupported server message";
+          this.fail("Unsupported server message");
           ws.close();
         }
       });
@@ -40689,12 +40719,13 @@ var GameClient = class {
         if (this.pending.size) this.uncertain = true;
         this.pending.clear();
         this.authorities.clear();
+        this.wake();
       });
       await new Promise((resolve, reject) => {
         ws.once("open", resolve);
         ws.once("error", reject);
       });
-      await this.request({ t: "hello", name: this.name, version: 1, noReplace: true, ...this.sessionToken ? { token: this.sessionToken } : {} });
+      await this.request({ t: "hello", name: this.name, version: 1, noReplace: true, controller: { kind: "llm", client: this.config.client === "dsh-plugin" ? "dsh-plugin" : "codex-mcp" }, ...this.sessionToken ? { token: this.sessionToken } : {} });
       if (!this.welcome) throw new Error(this.siteError || "No compatible welcome");
       await this.quiet();
       if (this.sessionLost) throw new Error("Site session expired; use ark_finish to acknowledge before starting a new game");
@@ -40703,9 +40734,7 @@ var GameClient = class {
       if (!this.site || this.site.index?.cs !== cs) {
         if (this.site) await this.site.close();
         this.siteError = null;
-        const site = new SiteRuntime(this.origin, this.headers, (m) => this.report(m), (e) => {
-          this.siteError = e;
-        });
+        const site = new SiteRuntime(this.origin, this.headers, (m) => this.report(m), (e) => this.fail(e));
         this.site = site;
         try {
           await site.load(cs);
@@ -40756,9 +40785,7 @@ var GameClient = class {
   }
   report(message) {
     if (!this.authorities.has(message.battleId) || !this.ws || this.pub?.paused) return;
-    this.request(message).catch((e) => {
-      this.siteError = "Site did not accept combat report: " + e.message;
-    });
+    this.request(message).catch((e) => this.fail("Site did not accept combat report: " + e.message));
   }
   // A native ack is not a state frame: coalesce the public/private push burst.
   async quiet() {
@@ -40774,14 +40801,16 @@ var GameClient = class {
     const map2 = await this.site.request("map", { pub: snapshot.pub, own: snapshot.own, myId: this.myId });
     return { ...projectNative({ ...snapshot, myId: this.myId, runtime: this.site, map: map2 }), ...this.siteError ? { notice: this.siteError } : {} };
   }
-  async wait(signal, seconds = 25) {
+  async settle(signal, readyRound) {
     await this.quiet();
-    const end = Date.now() + seconds * 1e3;
-    while (!this.result && !canAct(this.pub, this.own, this.myId, this.result) && Date.now() < end) {
+    for (; ; ) {
       signal?.throwIfAborted();
-      if (!this.ws) throw new Error("Connection lost while waiting; use ark_view");
-      if (this.siteError) break;
-      await pause(100);
+      if (this.siteError) throw new Error(this.siteError + "; recover with ark_view, do not repeat accepted actions");
+      if (!this.ws || this.ws.readyState !== wrapper_default.OPEN) throw new Error("Connection lost during settlement; recover with ark_view, do not repeat accepted actions");
+      const oldPrep = readyRound !== void 0 && this.pub?.round === readyRound && this.pub?.phase === "PREP" && !this.own?.personalChoice;
+      if (this.result || this.pub?.paused || !this.room?.inMatch && !this.pub || !oldPrep && canAct(this.pub, this.own, this.myId, this.result)) return;
+      await this.changed(signal);
+      await this.quiet();
     }
   }
   normalize(action2) {
@@ -40824,6 +40853,7 @@ var GameClient = class {
       }
       if (this.room?.content?.vanilla === false) throw new Error("Gameplay plugin content sets are not supported by this client version");
       if (payload.op === "view") {
+        await this.settle(signal);
         const result = await this.view();
         this.uncertain = false;
         return result;
@@ -40836,9 +40866,17 @@ var GameClient = class {
         this.combatQueue = [];
         this.authorities.clear();
         this.revision++;
-        await this.request({ t: "room.create", mode: "solo", difficulty: payload.difficulty || "ABYSS" });
-        await this.request({ t: "room.start" });
-        await this.wait(signal, 5);
+        const code = String(payload.roomCode || "").trim().toUpperCase();
+        if (code) {
+          if (!/^[A-Z0-9]{4}$/.test(code)) throw new Error("Expected a four-character room code");
+          await this.request({ t: "room.join", code });
+          if (this.room?.content?.vanilla === false) throw new Error("Gameplay plugin content sets are not supported by this client version");
+          await this.request({ t: "room.ready", ready: true });
+        } else {
+          await this.request({ t: "room.create", mode: "solo", difficulty: payload.difficulty || "ABYSS" });
+          await this.request({ t: "room.start" });
+        }
+        await this.settle(signal);
         return await this.view();
       }
       if (payload.op === "lookup") {
@@ -40872,10 +40910,6 @@ var GameClient = class {
         });
         return { result: { kind, entries } };
       }
-      if (payload.op === "advance") {
-        await this.wait(signal);
-        return await this.view();
-      }
       if (payload.op !== "act") throw new Error("Unsupported gameplay operation");
       await this.quiet();
       if (payload.revision !== this.revision) return { ...await this.view(), error: "STALE_CLIENT_SNAPSHOT", executed: [] };
@@ -40886,6 +40920,7 @@ var GameClient = class {
       }
       if (payload.revision !== this.revision) return { ...await this.view(), error: "STALE_CLIENT_SNAPSHOT", executed: [] };
       const executed = [];
+      let readyRound;
       for (const step of payload.steps) {
         signal?.throwIfAborted();
         if (!canAct(this.pub, this.own, this.myId, this.result)) break;
@@ -40895,15 +40930,16 @@ var GameClient = class {
         try {
           await this.request(message);
           executed.push({ action: step.action, reason: step.reason, accepted: true });
+          if (step.action.type === "ready") readyRound = round;
         } catch (e) {
           if (!e.code) throw e;
           executed.push({ action: step.action, reason: step.reason, accepted: false, result: { error: e.code, detail: e.detail } });
           break;
         }
         await this.quiet();
-        if (this.pub.phase !== phase || this.pub.round !== round || this.result || !canAct(this.pub, this.own, this.myId, this.result)) break;
+        if (readyRound !== void 0 || this.pub.phase !== phase || this.pub.round !== round || this.result || !canAct(this.pub, this.own, this.myId, this.result)) break;
       }
-      if (payload.advance !== false) await this.wait(signal);
+      await this.settle(signal, readyRound);
       return { ...await this.view(), executed, ...!executed.length ? { notice: "\u5F53\u524D\u6CA1\u6709\u53EF\u63D0\u4EA4\u7684\u73A9\u5BB6\u51B3\u7B56\uFF1B\u672C\u6279\u672A\u6267\u884C\uFF0C\u8BF7\u4F9D\u636E\u65B0\u5C40\u9762\u91CD\u65B0\u9009\u62E9\u3002" } : {} };
     } catch (e) {
       if (signal?.aborted) this.uncertain = true;
@@ -40916,6 +40952,7 @@ var GameClient = class {
     const ws = this.ws;
     this.ws = null;
     this.welcome = null;
+    this.wake();
     if (ws) {
       ws.close();
       const timer = setTimeout(() => ws.terminate(), 1e3);
@@ -40933,7 +40970,7 @@ var GameClient = class {
   }
 };
 
-// src/compact.mjs
+// node_modules/@arkstrongholdrl/ark-play-core/src/compact.mjs
 var arrow = { RIGHT: "\u2192", LEFT: "\u2190", UP: "\u2191", DOWN: "\u2193" };
 var one = (p) => p ? `#${p.uid}${p.golden ? "\u91D1" : ""}${p.name}${p.tier ? `(${p.tier}\u9636)` : ""}` + (p.row === void 0 ? "" : `@${p.row},${p.col}${arrow[p.dir] || ""}`) + (p.owner ? ` \u5C5E#${p.owner}` : "") + (p.count ? `\xD7${p.count}` : "") + (p.itemType ? `/${p.itemType}` : "") + (p.items.length ? ` \u88C5[${p.items.map((i) => `#${i.uid}${i.name}`).join("\u3001")}]` : "") : "\u7A7A";
 var short = (value) => typeof value === "string" ? value : JSON.stringify(value);
@@ -40965,13 +41002,14 @@ function render(reply, previous = null, force = false) {
   }
   if (v.setup) lines.push(`\u5F00\u5C40: ${short(v.setup)}`);
   if (reply.notice) lines.push(`\u7AD9\u70B9/\u5BA2\u6237\u7AEF\u72B6\u6001: ${reply.notice}`);
+  if (v.paused) lines.push("\u6E38\u620F\u7AD9\u5DF2\u6682\u505C\uFF1A\u8BF7\u5728\u7AD9\u70B9\u6062\u590D\u540E\u8C03\u7528 ark_view\uFF1B\u5F53\u524D\u5DE5\u5177\u4E0D\u4F1A\u7ED3\u675F\u51C6\u5907\u6216\u8DF3\u8FC7\u6682\u505C\u3002");
   if (v.me.handEmpty.length === 0) lines.push("\u624B\u724C\u5DF2\u6EE1\uFF1A\u5148\u88C5\u5907/\u51FA\u552E/\u5904\u7406\u5E93\u5B58\u624D\u80FD\u8D2D\u4E70\u6216\u9886\u53D6\u9700\u7A7A\u4F4D\u7684\u5956\u52B1\u3002");
   if (v.terminal) lines.push(`\u7ED3\u7B97: ${short(v.outcome)}`);
   lines.push(`\u53EF\u8C03\u7528: ${v.available.join(", ")}\u3002\u52A8\u4F5C\u6709\u76EE\u6807\u7EA6\u675F\uFF0C\u4ECD\u53EF\u80FD\u88AB\u5F15\u64CE\u62D2\u7EDD\u3002`);
   return lines.join("\n");
 }
 
-// src/tools.mjs
+// node_modules/@arkstrongholdrl/ark-play-core/src/tools.mjs
 var uid = external_exports.number().int().positive();
 var index = external_exports.number().int().nonnegative();
 var action = external_exports.discriminatedUnion("type", [
@@ -40995,7 +41033,7 @@ var action = external_exports.discriminatedUnion("type", [
   }),
   external_exports.object({ type: external_exports.literal("ready"), ready: external_exports.literal(true).optional() })
 ]);
-var INSTRUCTIONS = "Play only on user request. ark_start joins the configured game site over its native /ws protocol and starts solo play. Read the compact view and submit explicit actions with the latest local snapshot revision and a short purpose. The revision is a client precondition, not a server atomic lock. The server can reject stale choices or illegal targets. Batches stop on rejection or phase/round changes. ark_wait waits for native events; it does not skip server timers. Native battle simulation is isolated from model observations. The site owns authentication, pacing, recording and persistence. This plugin never collects or downloads trajectories. Do not blindly retry uncertain action outcomes; use ark_view first.";
+var INSTRUCTIONS = "Play only on user request. ark_start joins the configured game site over its native /ws protocol and starts solo play, or joins a specified room and readies up for its host. Read the compact view and submit explicit actions with the latest local snapshot revision and a short purpose. The revision is a client precondition, not a server atomic lock. The server can reject stale choices or illegal targets. Batches stop on rejection or phase/round changes and never continue into another round. After ready, the plugin computes and reports combat internally and returns the next player decision or terminal result; no wait tool or polling is needed. ark_view also completes pending settlement when recovering an uncertain action. Cancellation or disconnection does not undo accepted actions; recover with ark_view before issuing another action. Native battle simulation is isolated from model observations. The site owns authentication, pacing, recording and persistence. This plugin never collects or downloads trajectories.";
 function createTools(config2 = {}) {
   const client = new GameClient(config2);
   let previous = null;
@@ -41008,28 +41046,22 @@ function createTools(config2 = {}) {
   const tools = [
     {
       name: "ark_start",
-      description: "\u5411\u6E38\u620F\u7AD9\u8BF7\u6C42\u5F00\u59CB\u72EC\u7ACB\u5355\u4EBA\u5BF9\u5C40\uFF1B\u5B9E\u9645\u80FD\u529B\u4E0E\u63A8\u8FDB\u65B9\u5F0F\u7531\u670D\u52A1\u5668\u51B3\u5B9A\u3002",
-      schema: external_exports.object({ difficulty: external_exports.enum(["ABYSS", "NORMAL", "HARD"]).default("ABYSS") }),
-      execute: async (args, signal) => show(await client.call({ op: "start", difficulty: args.difficulty }, signal), true)
+      description: "\u5F00\u5355\u4EBA\u5C40\uFF0C\u6216\u6309 roomCode \u52A0\u5165\u5DF2\u6709\u623F\u95F4\u5E76\u51C6\u5907\uFF0C\u7B49\u5F85\u623F\u4E3B\u5F00\u59CB\u3002\u623F\u95F4\u53F7\u7559\u7A7A\u5F00\u5355\u4EBA\u5C40\uFF1B\u52A0\u5165\u65F6\u96BE\u5EA6\u7531\u623F\u95F4\u51B3\u5B9A\u3002",
+      schema: external_exports.object({ difficulty: external_exports.enum(["ABYSS", "NORMAL", "HARD"]).default("ABYSS"), roomCode: external_exports.string().trim().toUpperCase().regex(/^(?:[A-Z0-9]{4})?$/).optional().describe("\u56DB\u4F4D\u623F\u95F4\u53F7\uFF1B\u7701\u7565\u4F7F\u7528DSH\u914D\u7F6E\uFF0C\u7A7A\u5B57\u7B26\u4E32\u5F00\u5355\u4EBA\u5C40") }),
+      execute: async (args, signal) => show(await client.call({ op: "start", difficulty: args.difficulty, roomCode: args.roomCode ?? config2.roomCode }, signal), true)
     },
     {
       name: "ark_view",
-      description: "\u6062\u590D\u5B8C\u6574\u7D27\u51D1\u5C40\u9762\uFF1B\u7528\u4E8E\u4E0A\u4E0B\u6587\u4E22\u5931\u3001\u65AD\u7EBF\u91CD\u8FDE\u6216\u52A8\u4F5C\u7ED3\u679C\u4E0D\u786E\u5B9A\u3002",
+      description: "\u6062\u590D\u5B8C\u6574\u7D27\u51D1\u5C40\u9762\uFF1B\u82E5\u6B63\u5728\u7ED3\u7B97\uFF0C\u63D2\u4EF6\u5185\u90E8\u5904\u7406\u81F3\u4E0B\u4E00\u51B3\u7B56\u6216\u7EC8\u5C40\u518D\u8FD4\u56DE\u3002\u7528\u4E8E\u4E0A\u4E0B\u6587\u4E22\u5931\u3001\u65AD\u7EBF\u91CD\u8FDE\u6216\u52A8\u4F5C\u7ED3\u679C\u4E0D\u786E\u5B9A\u3002",
       schema: external_exports.object({}),
       readOnly: true,
       execute: async (_, signal) => show(await client.call({ op: "view" }, signal), true)
     },
     {
       name: "ark_act",
-      description: "\u6309\u5F53\u524D\u672C\u5730\u5FEB\u7167revision\u6267\u884C1\u81F38\u6B65\u660E\u786E\u52A8\u4F5C\u3002\u62D2\u7EDD\u6216\u9636\u6BB5/\u56DE\u5408\u6539\u53D8\u5373\u505C\u6B62\uFF1Badvance\u8868\u793A\u7B49\u5F85\u540E\u7EED\u539F\u751F\u4E8B\u4EF6\uFF0C\u4E0D\u8DF3\u8FC7\u7AD9\u70B9\u8BA1\u65F6\u3002",
-      schema: external_exports.object({ revision: index, steps: external_exports.array(external_exports.object({ action, reason: external_exports.string().min(1).max(400) })).min(1).max(8), advance: external_exports.boolean().default(true) }),
+      description: "\u6309\u5F53\u524D\u672C\u5730\u5FEB\u7167revision\u6267\u884C1\u81F38\u6B65\u660E\u786E\u52A8\u4F5C\u3002\u62D2\u7EDD\u6216\u9636\u6BB5/\u56DE\u5408\u6539\u53D8\u5373\u505C\u6B62\u672C\u6279\uFF1Bready\u540E\u81EA\u52A8\u5B8C\u6210\u6218\u6597\u8BA1\u7B97\u3001\u4E0A\u62A5\u548C\u7ED3\u7B97\uFF0C\u8FD4\u56DE\u4E0B\u4E00\u51B3\u7B56\u5C40\u9762\u6216\u7EC8\u5C40\uFF0C\u4E0D\u9700\u8F6E\u8BE2\u3002\u7AD9\u70B9\u6682\u505C\u65F6\u8FD4\u56DE\u6682\u505C\u63D0\u793A\u3002",
+      schema: external_exports.object({ revision: index, steps: external_exports.array(external_exports.object({ action, reason: external_exports.string().min(1).max(400) })).min(1).max(8) }),
       execute: async (args, signal) => show(await client.call({ op: "act", ...args }, signal))
-    },
-    {
-      name: "ark_wait",
-      description: "\u7B49\u5F85\u6216\u8BF7\u6C42\u670D\u52A1\u5668\u63A8\u8FDB\u5230\u4E0B\u4E00\u53EF\u64CD\u4F5C\u5C40\u9762\uFF1B\u4E0D\u66FF\u73A9\u5BB6\u4F5C\u9009\u62E9\u3002",
-      schema: external_exports.object({}),
-      execute: async (_, signal) => show(await client.call({ op: "advance" }, signal))
     },
     {
       name: "ark_lookup",
@@ -41053,19 +41085,12 @@ function createTools(config2 = {}) {
 
 // package.json
 var package_default = {
-  name: "@harco/ark-play-core",
-  version: "0.2.0-alpha.1",
+  name: "ark-play-codex",
+  version: "0.2.0-alpha.2",
   private: true,
   type: "module",
-  exports: {
-    ".": "./src/tools.mjs",
-    "./mcp": "./src/mcp.mjs",
-    "./package.json": "./package.json",
-    "./build-notices": "./tools/notices.mjs",
-    "./build-package": "./tools/package.mjs"
-  },
   license: "GPL-3.0-or-later",
-  description: "Codex/DSH WSS gameplay client core; recording and access control belong to the game site",
+  description: "Codex MCP plugin for Ark Stronghold using the shared Ark Play core",
   engines: {
     node: ">=22"
   },
@@ -41077,8 +41102,7 @@ var package_default = {
   },
   dependencies: {
     "@modelcontextprotocol/sdk": "1.32.1",
-    ws: "8.22.0",
-    zod: "4.6.7"
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/aa2be54ce0cb83d3a107fe60d754b6748b5a320b"
   },
   devDependencies: {
     esbuild: "0.25.12"
@@ -41091,7 +41115,7 @@ var package_default = {
 };
 
 // src/mcp.mjs
-var runtime = createTools();
+var runtime = createTools({ client: "codex-mcp" });
 var server = new McpServer({ name: "ark-play", version: package_default.version }, { instructions: INSTRUCTIONS });
 for (const tool of runtime.tools) {
   server.registerTool(

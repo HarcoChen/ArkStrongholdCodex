@@ -1,17 +1,10 @@
 {
-  "name": "@harco/ark-play-core",
-  "version": "0.2.0-alpha.1",
+  "name": "ark-play-codex",
+  "version": "0.2.0-alpha.2",
   "private": true,
   "type": "module",
-  "exports": {
-    ".": "./src/tools.mjs",
-    "./mcp": "./src/mcp.mjs",
-    "./package.json": "./package.json",
-    "./build-notices": "./tools/notices.mjs",
-    "./build-package": "./tools/package.mjs"
-  },
   "license": "GPL-3.0-or-later",
-  "description": "Codex/DSH WSS gameplay client core; recording and access control belong to the game site",
+  "description": "Codex MCP plugin for Ark Stronghold using the shared Ark Play core",
   "engines": {
     "node": ">=22"
   },
@@ -23,8 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
-    "ws": "8.22.0",
-    "zod": "4.6.7"
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/aa2be54ce0cb83d3a107fe60d754b6748b5a320b"
   },
   "devDependencies": {
     "esbuild": "0.25.12"

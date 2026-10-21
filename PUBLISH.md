@@ -1,6 +1,8 @@
-# 发布0.2.0-alpha.1
+# 发布0.2.0-alpha.2
 
 这是原生/ws客户端预览版，不发布旧0.1.0采集网关原型。
+
+本版工具契约改为五个工具：移除 `ark_wait` 与模型可见的 `advance`；`ready` 通过插件内部计算、上报和推进，返回下一决策或终局，且不会将剩余批次带入下一轮。站点强制计时、暂停与首领共享血池规则保留。旧对话中的工具清单需要重启客户端并新开对话刷新。
 
 ## GitHub Actions
 
@@ -39,3 +41,12 @@ Ark Play首个原生游戏站对局预览版：Codex插件与DSH原生插件共�
 验证：本地0.3.1服务器、证书校验的WSS，两个真实工具入口各完成一局；服务器全量复算共10场普通战斗且无不一致/结果拒绝/接管。未驱动实际LLM或宣称棋力提升。仅vanilla solo；首领/隐藏关共享血池及玩法插件房间尚未完整验收，站点计时不会跳过。需要Node22+及可信站点/ws与公开内容模块；详见README。
 
 安装与发布是独立步骤；上传源码不会修改用户全局配置或部署游戏站。GitHub预览Release需附对应zip。
+
+## 独立 Core 依赖
+
+共享对局代码已迁往 https://github.com/ArkStrongholdRL/ark-play-core。
+本仓库只维护 Codex MCP 入口、插件清单和构建包装。
+依赖名为 `@arkstrongholdrl/ark-play-core`，使用明确提交的 HTTPS 归档并由 lockfile 固定完整性。
+发布 Core 改动后，更新 package.json 的提交与 package-lock.json，按 CI 的 `npm ci --ignore-scripts` 重建验证。
+构建与打包无需相邻 checkout、本地 tgz 或手动覆盖 node_modules。
+ZIP 包含核心与 Codex 宿主的对应源码；已构建包不需要运行时安装 Core。

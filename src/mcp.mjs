@@ -1,9 +1,9 @@
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
-import {createTools,INSTRUCTIONS} from './tools.mjs';
+import {createTools,INSTRUCTIONS} from '@arkstrongholdrl/ark-play-core';
 import metadata from '../package.json' with {type:'json'};
 
-const runtime=createTools();
+const runtime=createTools({client:'codex-mcp'});
 const server=new McpServer({name:'ark-play',version:metadata.version},{instructions:INSTRUCTIONS});
 for(const tool of runtime.tools) {
   server.registerTool(tool.name,{description:tool.description,inputSchema:tool.schema,

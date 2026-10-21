@@ -1,10 +1,23 @@
-// src/site-loader.mjs
+// node_modules/@arkstrongholdrl/ark-play-core/src/site-loader.mjs
 import { createHash } from "node:crypto";
 var origin;
 var headers;
 var hashes;
-function initialize(options) {
+var sources = /* @__PURE__ */ new Map();
+async function initialize(options) {
   ({ origin, headers, hashes } = options);
+  const paths = Object.keys(hashes);
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(8, paths.length) }, async () => {
+    for (; ; ) {
+      const path = paths[cursor++];
+      if (path === void 0) return;
+      const url = new URL(path, origin + "/");
+      if (url.origin !== origin || url.username || url.password || url.search || url.hash || url.pathname.slice(1) !== path)
+        throw new Error("Invalid upstream manifest module path");
+      sources.set(url.href, await fetchModule(url.href));
+    }
+  }));
 }
 var remote = (url) => /^https?:/.test(url);
 async function resolve(specifier, context, next) {
@@ -19,6 +32,10 @@ async function resolve(specifier, context, next) {
 }
 async function load(url, context, next) {
   if (!remote(url)) return next(url, context);
+  const source = sources.get(url) || await fetchModule(url);
+  return { format: "module", source, shortCircuit: true };
+}
+async function fetchModule(url) {
   const u = new URL(url);
   if (u.origin !== origin) throw new Error("Cross-site module load refused");
   const response = await fetch(url, { headers, redirect: "error", signal: AbortSignal.timeout(3e4) });
@@ -32,7 +49,7 @@ async function load(url, context, next) {
   }
   const source = Buffer.concat(chunks), expected = hashes[u.pathname.slice(1)];
   if (expected && createHash("sha256").update(source).digest("hex") !== expected) throw new Error("Upstream module hash mismatch: " + u.pathname);
-  return { format: "module", source, shortCircuit: true };
+  return source;
 }
 export {
   initialize,
