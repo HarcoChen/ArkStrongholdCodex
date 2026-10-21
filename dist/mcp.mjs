@@ -40339,10 +40339,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 var DEFAULT_SITE_URL = "https://ark.minyako.top";
-function normalizePlayerName(value) {
+function defaultPlayerName(client) {
+  return { "dsh-plugin": "\u84DD\u8272\u5927\u80A5\u9C7C", "codex-mcp": "\u7B28\u86CB\u5927\u80A5\u9F99" }[client] || "Ark Agent";
+}
+function normalizePlayerName(value, fallback = "Ark Agent") {
   const name = String(value ?? "").trim();
   if (name.length > 12) throw new Error("\u73A9\u5BB6\u540D\u6700\u591A 12 \u4E2A\u5B57\u7B26");
-  return name || "Ark Agent";
+  return name || fallback;
 }
 function normalizeSiteUrl(value) {
   const input2 = String(value ?? "").trim();
@@ -40386,7 +40389,7 @@ function resolveConfig(config2 = {}, environment = process.env) {
   const resolved = { ...defaults, ...env, ...config2 };
   resolved.url = normalizeSiteUrl(resolved.url || DEFAULT_SITE_URL);
   resolved.roomCode = normalizeRoomCode(resolved.roomCode);
-  resolved.name = normalizePlayerName(resolved.name);
+  resolved.name = normalizePlayerName(resolved.name, defaultPlayerName(resolved.client));
   return resolved;
 }
 
@@ -41184,7 +41187,7 @@ var package_default = {
     package: "node tools/package.mjs"
   },
   dependencies: {
-    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/9f78fe076661fe7fa5f9625919d5c2a681d9ea4d",
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/9f8c86af67148039bf778b3e8767bdeea0d5a614",
     "@modelcontextprotocol/sdk": "1.32.1"
   },
   devDependencies: {
@@ -41201,7 +41204,7 @@ var package_default = {
 import { fileURLToPath } from "node:url";
 var runtime = createCodexRuntime();
 var setup = fileURLToPath(new URL("../configure.mjs", import.meta.url));
-var instructions = INSTRUCTIONS + " Codex defaults to https://ark.minyako.top. An omitted roomCode uses saved client settings; an empty roomCode starts solo play. Saved settings are reread at a safe new-game boundary. To change defaults on user request, run node " + JSON.stringify(setup) + ' --update --room-code AB12 (or --url https://site-host, or --name "\u73A9\u5BB6\u540D"). Player names accept up to 12 characters; an empty name restores Ark Agent. Changing the name retains the LLM controller declaration. Preserve existing credentials and do not start a game merely to configure settings.';
+var instructions = INSTRUCTIONS + " Codex defaults to https://ark.minyako.top and player name \u7B28\u86CB\u5927\u80A5\u9F99. An omitted roomCode uses saved client settings; an empty roomCode starts solo play. Saved settings are reread at a safe new-game boundary. To change defaults on user request, run node " + JSON.stringify(setup) + ' --update --room-code AB12 (or --url https://site-host, or --name "\u73A9\u5BB6\u540D"). Player names accept up to 12 characters; an empty name restores \u7B28\u86CB\u5927\u80A5\u9F99. Changing the name retains the LLM controller declaration. Preserve existing credentials and do not start a game merely to configure settings.';
 var server = new McpServer({ name: "ark-play", version: package_default.version }, { instructions });
 for (const tool of runtime.tools) {
   server.registerTool(

@@ -39,7 +39,7 @@ codex plugin add ark-play@ark-stronghold
 codex mcp add ark -- node /absolute/ark-play-codex/dist/mcp.mjs
 ```
 
-MCP SDK stdio入口已实测；Codex CLI 已实际读取仓库市场索引并列出正确插件及版本，桌面UI完整安装流程尚未单独验收。配置文件还支持 roomCode、name、headersFile、tokenFile、sessionFile；环境变量为 ARK_AGENT_URL / ARK_AGENT_ROOM_CODE / ARK_AGENT_NAME / ARK_AGENT_CONFIG_FILE / ARK_AGENT_HEADERS_FILE / ARK_AGENT_TOKEN_FILE / ARK_AGENT_SESSION_FILE。玩家名会去除两端空白，最多 12 个字符；`--name ""` 恢复 Ark Agent，修改后下一盘生效，LLM 标记保留。凭据只由客户端携带，服务器决定权限与有效期。原生会话令牌仅在进程内保存，不输出给模型；客户端重启不承诺恢复。
+MCP SDK stdio入口已实测；Codex CLI 已实际读取仓库市场索引并列出正确插件及版本，桌面UI完整安装流程尚未单独验收。配置文件还支持 roomCode、name、headersFile、tokenFile、sessionFile；环境变量为 ARK_AGENT_URL / ARK_AGENT_ROOM_CODE / ARK_AGENT_NAME / ARK_AGENT_CONFIG_FILE / ARK_AGENT_HEADERS_FILE / ARK_AGENT_TOKEN_FILE / ARK_AGENT_SESSION_FILE。玩家名会去除两端空白，最多 12 个字符；默认玩家名为「笨蛋大肥龙」，`--name ""` 恢复默认名，修改后下一盘生效，LLM 标记保留。凭据只由客户端携带，服务器决定权限与有效期。原生会话令牌仅在进程内保存，不输出给模型；客户端重启不承诺恢复。
 
 使用你信任的游戏站：客户端会执行该站点公开发布的规则模块。Worker隔离内容状态，不是操作系统权限沙箱。远程仅允许有效证书WSS；回环可用ws。原生站点无需新增Agent API或下载接口。
 

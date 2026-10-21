@@ -15,7 +15,7 @@
     "package": "node tools/package.mjs"
   },
   "dependencies": {
-    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/9f78fe076661fe7fa5f9625919d5c2a681d9ea4d",
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/9f8c86af67148039bf778b3e8767bdeea0d5a614",
     "@modelcontextprotocol/sdk": "1.32.1"
   },
   "devDependencies": {

@@ -10,10 +10,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 var DEFAULT_SITE_URL = "https://ark.minyako.top";
-function normalizePlayerName(value) {
+function normalizePlayerName(value, fallback = "Ark Agent") {
   const name = String(value ?? "").trim();
   if (name.length > 12) throw new Error("\u73A9\u5BB6\u540D\u6700\u591A 12 \u4E2A\u5B57\u7B26");
-  return name || "Ark Agent";
+  return name || fallback;
 }
 function normalizeSiteUrl(value) {
   const input = String(value ?? "").trim();
@@ -53,7 +53,7 @@ var update = false;
 if (args.includes("--help")) {
   console.log('node configure.mjs [--url https://ark.minyako.top] [--room-code AB12] [--name "\u73A9\u5BB6\u540D"] [--update] [--headers-file private.json] [--token-file site-bearer-token] [--session-file native-session-token] [--out client.json]');
   console.log("No --url: use the saved site when updating, otherwise " + DEFAULT_SITE_URL + ". Empty --room-code opens solo games. --update preserves other saved fields.");
-  console.log("--name: player name, up to 12 characters. Empty name resets to Ark Agent. Applies to the next game; LLM identification is retained.");
+  console.log("--name: player name, up to 12 characters. Empty name restores the plugin default (DSH: \u84DD\u8272\u5927\u80A5\u9C7C; Codex: \u7B28\u86CB\u5927\u80A5\u9F99). Applies to the next game; LLM identification is retained.");
 } else {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--update") {
@@ -70,7 +70,10 @@ if (args.includes("--help")) {
   const url = normalizeSiteUrl(options["--url"] ?? previous.url ?? DEFAULT_SITE_URL);
   const roomCode = normalizeRoomCode(options["--room-code"] ?? previous.roomCode);
   const extra = {};
-  if (options["--name"] !== void 0) extra.name = normalizePlayerName(options["--name"]);
+  if (options["--name"] !== void 0) {
+    normalizePlayerName(options["--name"]);
+    extra.name = options["--name"].trim();
+  }
   for (const [key, flag] of [["headersFile", "--headers-file"], ["tokenFile", "--token-file"], ["sessionFile", "--session-file"]]) {
     if (options[flag] !== void 0) {
       const path = resolve(options[flag]);
