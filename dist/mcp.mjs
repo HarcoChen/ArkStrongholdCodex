@@ -41172,7 +41172,7 @@ function createCodexRuntime(config2 = {}) {
 // package.json
 var package_default = {
   name: "ark-play-codex",
-  version: "0.2.0-alpha.2",
+  version: "0.2.0-alpha.3",
   private: true,
   type: "module",
   license: "GPL-3.0-or-later",

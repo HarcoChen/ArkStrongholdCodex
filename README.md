@@ -1,6 +1,6 @@
 # Ark Play — Codex 插件
 
-`0.2.0-alpha.2`：通过游戏站现有原生 `/ws` 对局。插件负责连接、紧凑局面、明确动作和原生客户端战斗；**采集、保存、导出入口、账号与鉴权规则由游戏站决定**。无独立网关、采集器、轨迹写盘或下载工具。
+`0.2.0-alpha.3`：通过游戏站现有原生 `/ws` 对局。插件负责连接、紧凑局面、明确动作和原生客户端战斗；**采集、保存、导出入口、账号与鉴权规则由游戏站决定**。无独立网关、采集器、轨迹写盘或下载工具。
 
 DSH 使用 Cordis 原生工具；Codex 插件包通过常驻 MCP 提供同样的工具，两端共用 [Ark Play Core](https://github.com/ArkStrongholdRL/ark-play-core) 的对局实现，本仓库仅保留 Codex MCP 入口与插件清单。MCP 是 Codex 工具接口，网站侧始终使用原生 WebSocket。旧0.1.0独立模拟器安装包已退役。
 
@@ -30,6 +30,15 @@ codex plugin add ark-play@ark-stronghold
 ```
 
 桌面端也可在插件市场的添加来源入口填写仓库地址。发布 zip 含相同索引，解压后可用 `codex plugin marketplace add /absolute/ark-play-codex` 添加本地来源。需要时重启桌面端、在本地新对话使用。
+
+更新仓库不会自动替换已安装插件的缓存。通过 Git 来源安装的用户，更新时运行：
+
+```sh
+codex plugin marketplace upgrade ark-stronghold
+codex plugin add ark-play@ark-stronghold
+```
+
+本地目录来源在完成构建后，直接重新运行第二条安装命令。随后重启桌面端并新建聊天。发布者更新时须同步提升 `package.json`、lockfile、`plugin.json` 和 `.codex-plugin/plugin.json` 的版本，并提交重新构建的产物；不要求创建 GitHub Release，但不能把代码推送当作已安装插件更新完成。
 
 根 `plugin.json` 是 portable manifest，`mcp.json` 配置 stdio MCP；`.codex-plugin/plugin.json` 提供 Codex 兼容 manifest。发布者与展示元数据已填写；根 `extensions.com.openai` 存在时优先于兼容文件，CI 检查两份信息一致。格式参考[官方插件打包文档](https://developers.openai.com/plugins/build/plugins)。仓库市场分发与官方公共目录收录是独立流程；本地 stdio MCP 的公共目录提交目前需要获准的合作伙伴资格，见[官方桌面插件提交要求](https://developers.openai.com/plugins/deploy/desktop-only)。
 
