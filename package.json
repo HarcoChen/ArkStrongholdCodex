@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
-    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/aa2be54ce0cb83d3a107fe60d754b6748b5a320b"
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/a2c909381b10bc547cfb8854784b3955cc4de29b"
   },
   "devDependencies": {
     "esbuild": "0.25.12"

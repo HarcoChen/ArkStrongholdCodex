@@ -40332,9 +40332,56 @@ var StdioServerTransport = class {
 };
 
 // node_modules/@arkstrongholdrl/ark-play-core/src/rpc.mjs
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync as readFileSync2 } from "node:fs";
+
+// node_modules/@arkstrongholdrl/ark-play-core/src/config.mjs
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+var DEFAULT_SITE_URL = "https://ark.minyako.top";
+function normalizeSiteUrl(value) {
+  const input2 = String(value ?? "").trim();
+  if (!input2) return "";
+  let url2;
+  try {
+    url2 = new URL(input2);
+  } catch {
+    throw new Error("\u8BF7\u8F93\u5165\u5B8C\u6574\u7684\u6E38\u620F\u7AD9\u7F51\u5740\uFF0C\u4F8B\u5982 " + DEFAULT_SITE_URL);
+  }
+  if (url2.username || url2.password || url2.search || url2.hash || !["/", "/ws", "/ws/"].includes(url2.pathname)) throw new Error("\u6E38\u620F\u7AD9\u5730\u5740\u53EA\u652F\u6301\u7AD9\u70B9\u6839\u8DEF\u5F84\u6216 /ws\uFF0C\u4E0D\u80FD\u5305\u542B\u8D26\u53F7\u3001\u67E5\u8BE2\u53C2\u6570\u6216\u7247\u6BB5");
+  const protocol = { https: "wss:", http: "ws:", wss: "wss:", ws: "ws:" }[url2.protocol.slice(0, -1)];
+  if (!protocol) throw new Error("\u6E38\u620F\u7AD9\u5730\u5740\u9700\u8981 https:// \u6216 wss://");
+  if (protocol === "ws:" && !["localhost", "127.0.0.1", "[::1]"].includes(url2.hostname)) throw new Error("\u8FDC\u7A0B\u6E38\u620F\u7AD9\u5FC5\u987B\u4F7F\u7528 HTTPS / WSS\uFF1BHTTP / WS \u4EC5\u9650\u672C\u673A\u56DE\u73AF\u5730\u5740");
+  return protocol + "//" + url2.host + "/ws";
+}
+function normalizeRoomCode(value) {
+  const code = String(value ?? "").trim().toUpperCase();
+  if (code && !/^[A-Z0-9]{4}$/.test(code)) throw new Error("\u623F\u95F4\u53F7\u987B\u4E3A\u56DB\u4F4D\u5B57\u6BCD\u6216\u6570\u5B57");
+  return code;
+}
+function configPath(config2 = {}, env = process.env) {
+  return config2.configFile || env.ARK_AGENT_CONFIG_FILE || join(homedir(), ".config/ark-play/client.json");
+}
+function readConfig(file2) {
+  if (!existsSync(file2)) return {};
+  const value = JSON.parse(readFileSync(file2, "utf8"));
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Client configuration must be an object");
+  return value;
+}
+function resolveConfig(config2 = {}, environment = process.env) {
+  const defaults = readConfig(configPath(config2, environment));
+  const env = Object.fromEntries(Object.entries({
+    url: environment.ARK_AGENT_URL,
+    roomCode: environment.ARK_AGENT_ROOM_CODE,
+    tokenFile: environment.ARK_AGENT_TOKEN_FILE,
+    headersFile: environment.ARK_AGENT_HEADERS_FILE,
+    sessionFile: environment.ARK_AGENT_SESSION_FILE
+  }).filter(([, value]) => value !== void 0));
+  const resolved = { ...defaults, ...env, ...config2 };
+  resolved.url = normalizeSiteUrl(resolved.url || DEFAULT_SITE_URL);
+  resolved.roomCode = normalizeRoomCode(resolved.roomCode);
+  return resolved;
+}
 
 // node_modules/ws/wrapper.mjs
 var import_stream = __toESM(require_stream(), 1);
@@ -40567,15 +40614,7 @@ var PUBLIC_KEYS = [
 ];
 var GameClient = class {
   constructor(config2 = {}) {
-    const file2 = config2.configFile || process.env.ARK_AGENT_CONFIG_FILE || join(homedir(), ".config/ark-play/client.json");
-    const defaults = existsSync(file2) ? JSON.parse(readFileSync(file2, "utf8")) : {};
-    const env = Object.fromEntries(Object.entries({
-      url: process.env.ARK_AGENT_URL,
-      tokenFile: process.env.ARK_AGENT_TOKEN_FILE,
-      headersFile: process.env.ARK_AGENT_HEADERS_FILE,
-      sessionFile: process.env.ARK_AGENT_SESSION_FILE
-    }).filter(([, v]) => v !== void 0));
-    this.config = { ...defaults, ...env, ...config2 };
+    this.config = resolveConfig(config2);
     config2 = this.config;
     this.url = config2.url || null;
     this.name = String(config2.name || "Ark Agent").trim().slice(0, 12) || "Ark Agent";
@@ -40585,11 +40624,11 @@ var GameClient = class {
       if (u.protocol !== "wss:" && !(u.protocol === "ws:" && ["127.0.0.1", "[::1]", "localhost"].includes(u.hostname))) throw new Error("Remote game connections require WSS");
       this.origin = u.origin.replace(/^ws/, "http");
     }
-    this.headers = config2.headersFile ? JSON.parse(readFileSync(config2.headersFile, "utf8")) : {};
+    this.headers = config2.headersFile ? JSON.parse(readFileSync2(config2.headersFile, "utf8")) : {};
     if (!this.headers || Array.isArray(this.headers) || Object.values(this.headers).some((v) => typeof v !== "string")) throw new Error("Site headers must be a string map");
-    const bearer = config2.token || (config2.tokenFile ? readFileSync(config2.tokenFile, "utf8").trim() : process.env.ARK_AGENT_TOKEN);
+    const bearer = config2.token || (config2.tokenFile ? readFileSync2(config2.tokenFile, "utf8").trim() : process.env.ARK_AGENT_TOKEN);
     if (bearer) this.headers.Authorization = "Bearer " + bearer;
-    this.sessionToken = config2.sessionFile ? readFileSync(config2.sessionFile, "utf8").trim() : null;
+    this.sessionToken = config2.sessionFile ? readFileSync2(config2.sessionFile, "utf8").trim() : null;
     this.pending = /* @__PURE__ */ new Map();
     this.rid = 0;
     this.revision = 0;
@@ -41047,8 +41086,8 @@ function createTools(config2 = {}) {
     {
       name: "ark_start",
       description: "\u5F00\u5355\u4EBA\u5C40\uFF0C\u6216\u6309 roomCode \u52A0\u5165\u5DF2\u6709\u623F\u95F4\u5E76\u51C6\u5907\uFF0C\u7B49\u5F85\u623F\u4E3B\u5F00\u59CB\u3002\u623F\u95F4\u53F7\u7559\u7A7A\u5F00\u5355\u4EBA\u5C40\uFF1B\u52A0\u5165\u65F6\u96BE\u5EA6\u7531\u623F\u95F4\u51B3\u5B9A\u3002",
-      schema: external_exports.object({ difficulty: external_exports.enum(["ABYSS", "NORMAL", "HARD"]).default("ABYSS"), roomCode: external_exports.string().trim().toUpperCase().regex(/^(?:[A-Z0-9]{4})?$/).optional().describe("\u56DB\u4F4D\u623F\u95F4\u53F7\uFF1B\u7701\u7565\u4F7F\u7528DSH\u914D\u7F6E\uFF0C\u7A7A\u5B57\u7B26\u4E32\u5F00\u5355\u4EBA\u5C40") }),
-      execute: async (args, signal) => show(await client.call({ op: "start", difficulty: args.difficulty, roomCode: args.roomCode ?? config2.roomCode }, signal), true)
+      schema: external_exports.object({ difficulty: external_exports.enum(["ABYSS", "NORMAL", "HARD"]).default("ABYSS"), roomCode: external_exports.string().trim().toUpperCase().regex(/^(?:[A-Z0-9]{4})?$/).optional().describe("\u56DB\u4F4D\u623F\u95F4\u53F7\uFF1B\u7701\u7565\u4F7F\u7528\u5BA2\u6237\u7AEF\u914D\u7F6E\uFF0C\u7A7A\u5B57\u7B26\u4E32\u5F00\u5355\u4EBA\u5C40") }),
+      execute: async (args, signal) => show(await client.call({ op: "start", difficulty: args.difficulty, roomCode: args.roomCode ?? client.config.roomCode }, signal), true)
     },
     {
       name: "ark_view",
@@ -41083,6 +41122,43 @@ function createTools(config2 = {}) {
   } };
 }
 
+// src/runtime.mjs
+function createCodexRuntime(config2 = {}) {
+  const options = { ...config2, client: "codex-mcp" };
+  let runtime2 = createTools(options), detached = false, busy = false;
+  const tools = runtime2.tools.map((tool) => ({ ...tool, async execute(args, signal) {
+    signal?.throwIfAborted();
+    if (busy) throw new Error("One gameplay call at a time");
+    busy = true;
+    try {
+      if (detached) {
+        runtime2 = createTools(options);
+        detached = false;
+      }
+      const previous = runtime2.client;
+      if (tool.name === "ark_start" && !previous.room?.inMatch && !previous.uncertain && !previous.replaced && !previous.sessionLost) {
+        const next = resolveConfig(options);
+        if (previous.result || JSON.stringify(next) !== JSON.stringify(previous.config)) {
+          const replacement = createTools(options);
+          await runtime2.close();
+          runtime2 = replacement;
+        }
+      }
+      const result = await runtime2.tools.find((selected) => selected.name === tool.name).execute(args, signal);
+      if (tool.name === "ark_finish") {
+        await runtime2.close();
+        detached = true;
+      }
+      return result;
+    } finally {
+      busy = false;
+    }
+  } }));
+  return { tools, async close() {
+    await runtime2.close();
+  } };
+}
+
 // package.json
 var package_default = {
   name: "ark-play-codex",
@@ -41102,7 +41178,7 @@ var package_default = {
   },
   dependencies: {
     "@modelcontextprotocol/sdk": "1.32.1",
-    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/aa2be54ce0cb83d3a107fe60d754b6748b5a320b"
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/a2c909381b10bc547cfb8854784b3955cc4de29b"
   },
   devDependencies: {
     esbuild: "0.25.12"
@@ -41115,8 +41191,11 @@ var package_default = {
 };
 
 // src/mcp.mjs
-var runtime = createTools({ client: "codex-mcp" });
-var server = new McpServer({ name: "ark-play", version: package_default.version }, { instructions: INSTRUCTIONS });
+import { fileURLToPath } from "node:url";
+var runtime = createCodexRuntime();
+var setup = fileURLToPath(new URL("../configure.mjs", import.meta.url));
+var instructions = INSTRUCTIONS + " Codex defaults to https://ark.minyako.top. An omitted roomCode uses saved client settings; an empty roomCode starts solo play. Saved settings are reread at a safe new-game boundary. To change defaults on user request, run node " + JSON.stringify(setup) + " --update --room-code AB12 (or --url https://site-host). Preserve existing credentials and do not start a game merely to configure settings.";
+var server = new McpServer({ name: "ark-play", version: package_default.version }, { instructions });
 for (const tool of runtime.tools) {
   server.registerTool(
     tool.name,

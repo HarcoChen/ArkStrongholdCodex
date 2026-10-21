@@ -26,11 +26,13 @@ if(entry.name!==portable.name||entry.source?.source!=='local'||entry.source.path
 if(entry.policy?.installation!=='AVAILABLE'||entry.policy.authentication!=='ON_INSTALL'||entry.category!==display.category)throw new Error('Marketplace policy/category mismatch');
 const mcp=JSON.parse(await readFile(join(root,'mcp.json'),'utf8'));
 if(mcp.mcpServers?.ark?.type!=='stdio'||mcp.mcpServers.ark.command!=='node'||mcp.mcpServers.ark.args?.[0]!=='${PLUGIN_ROOT}/dist/mcp.mjs'||mcp.mcpServers.ark.cwd!=='${PLUGIN_ROOT}')throw new Error('MCP entry mismatch');
-for(const file of ['dist/mcp.mjs','dist/site-worker.mjs','dist/site-loader.mjs','dist/THIRD_PARTY_LICENSES.txt','corresponding-source/ark-play-core/src/tools.mjs','corresponding-source/ark-play-core/PROVENANCE.md']) {
+for(const file of ['configure.mjs','dist/mcp.mjs','dist/site-worker.mjs','dist/site-loader.mjs','dist/THIRD_PARTY_LICENSES.txt','corresponding-source/ark-play-core/src/tools.mjs','corresponding-source/ark-play-core/PROVENANCE.md']) {
   if(!(await stat(join(root,file))).size)throw new Error('Missing runtime artifact: '+file);
 }
 for(const folder of ['src','tools','dist'])for(const file of await readdir(join(root,folder))) {
   if(file.endsWith('.mjs'))execFileSync(process.execPath,['--check',join(root,folder,file)]);
 }
+const setupHelp=execFileSync(process.execPath,[join(root,'configure.mjs'),'--help'],{encoding:'utf8'});
+if(!setupHelp.includes('--room-code')||!setupHelp.includes('ark.minyako.top'))throw new Error('Standalone configuration CLI is stale');
 if(process.env.RELEASE_TAG&&process.env.RELEASE_TAG!=='v'+metadata.version)throw new Error('Release tag must equal v'+metadata.version);
 console.log('Build/package contracts valid: '+metadata.name+'@'+metadata.version);

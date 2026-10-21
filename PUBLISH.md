@@ -50,3 +50,5 @@ Ark Play首个原生游戏站对局预览版：Codex插件与DSH原生插件共�
 发布 Core 改动后，更新 package.json 的提交与 package-lock.json，按 CI 的 `npm ci --ignore-scripts` 重建验证。
 构建与打包无需相邻 checkout、本地 tgz 或手动覆盖 node_modules。
 ZIP 包含核心与 Codex 宿主的对应源码；已构建包不需要运行时安装 Core。
+
+Codex 同步 DSH 的默认站点、房间号保存与覆盖规则、下一盘读取配置、玩家来源声明和引导。命令行配置支持 --update，并在发布 ZIP 顶层提供独立 configure.mjs；不开图形配置页。插件清单使用薄荷绿品牌色，两份 manifest 保持一致。

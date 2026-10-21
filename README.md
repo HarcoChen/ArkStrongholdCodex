@@ -11,10 +11,14 @@ DSH 使用 Cordis 原生工具；Codex 插件包通过常驻 MCP 提供同样的
 源码执行 `node tools/configure.mjs`，发布包执行 `node configure.mjs`：
 
 ```sh
-node configure.mjs --url wss://your-game-site/ws
+node configure.mjs
+# 保存默认房间号（留空仍为单人）：
+node configure.mjs --update --room-code AB12
+# 自定义游戏站，可填根地址：
+node configure.mjs --update --url https://your-game-site
 ```
 
-创建 `~/.config/ark-play/client.json`，权限0600、拒绝覆盖。站点需要额外凭据时，按站点规则选配 `--headers-file private-headers.json`（JSON握手头）、`--token-file bearer-token`（Bearer）或 `--session-file native-session-token`（已有原生hello会话令牌）。后两种令牌含义不同；没有站点要求就无需配置。脚本不会连接、安装插件或显示凭据。
+默认站点为 [ark.minyako.top](https://ark.minyako.top)，无需先配置即可请求开局。脚本创建 `~/.config/ark-play/client.json`，权限 0600；已有文件需显式传 `--update` 才更新，并保留未指定的字段与凭据。可用 `--out` 或 `ARK_AGENT_CONFIG_FILE` 指定配置文件。保存后的设置在下一盘开局时读取，当前对局保持原设置。站点需要额外凭据时，按站点规则选配 `--headers-file private-headers.json`（JSON握手头）、`--token-file bearer-token`（Bearer）或 `--session-file native-session-token`（已有原生hello会话令牌）。后两种令牌含义不同；没有站点要求就无需配置。脚本不会连接、安装插件或显示凭据。
 
 仓库附有市场索引 `.agents/plugins/marketplace.json`，条目为 `ark-play@ark-stronghold`，指向仓库根目录的完整插件。添加此仓库市场并安装：
 
@@ -33,7 +37,7 @@ codex plugin add ark-play@ark-stronghold
 codex mcp add ark -- node /absolute/ark-play-codex/dist/mcp.mjs
 ```
 
-MCP SDK stdio入口已实测；Codex CLI 已实际读取仓库市场索引并列出正确插件及版本，桌面UI完整安装流程尚未单独验收。配置文件还支持 name、headersFile、tokenFile、sessionFile；环境变量为 ARK_AGENT_URL / ARK_AGENT_CONFIG_FILE / ARK_AGENT_HEADERS_FILE / ARK_AGENT_TOKEN_FILE / ARK_AGENT_SESSION_FILE。凭据只由客户端携带，服务器决定权限与有效期。原生会话令牌仅在进程内保存，不输出给模型；客户端重启不承诺恢复。
+MCP SDK stdio入口已实测；Codex CLI 已实际读取仓库市场索引并列出正确插件及版本，桌面UI完整安装流程尚未单独验收。配置文件还支持 roomCode、name、headersFile、tokenFile、sessionFile；环境变量为 ARK_AGENT_URL / ARK_AGENT_ROOM_CODE / ARK_AGENT_CONFIG_FILE / ARK_AGENT_HEADERS_FILE / ARK_AGENT_TOKEN_FILE / ARK_AGENT_SESSION_FILE。凭据只由客户端携带，服务器决定权限与有效期。原生会话令牌仅在进程内保存，不输出给模型；客户端重启不承诺恢复。
 
 使用你信任的游戏站：客户端会执行该站点公开发布的规则模块。Worker隔离内容状态，不是操作系统权限沙箱。远程仅允许有效证书WSS；回环可用ws。原生站点无需新增Agent API或下载接口。
 
@@ -48,6 +52,8 @@ MCP SDK stdio入口已实测；Codex CLI 已实际读取仓库市场索引并列
 | ark_finish | 原生room.leave并断开客户端；保存与处理归站点 |
 
 提示示例：`用 ark_start 开一局深渊，根据公开局面和说明主动管理资金、手牌、晋升与摆放，玩到自然结束。只进行对局，不下载或管理轨迹。`
+
+指定房间号示例：`ark_start({roomCode:"AB12"})`。省略 `roomCode` 使用配置文件或 `ARK_AGENT_ROOM_CODE`；传 `roomCode:""` 临时创建单人局。加入房间时采用房间难度，并自动准备；房主开始后用 `ark_view` 获取局面。房间不存在、已满或已开始时返回站点错误，不自动另开单人局。
 
 当前只提供上述五个工具，不再向模型提供 `ark_wait`，`ark_act` 也不再接收 `advance` 开关。`ready` 后立即停止本批的剩余动作；插件后台计算战斗、上报原生结果，并处理站点推进，模型下一次看到的是可决策局面或完整终局结果。站点暂停时返回暂停提示。等待可取消，断线或取消不会撤销已接受的动作，应以 `ark_view` 恢复，不能重复发送 `ready`。服务端强制计时和首领共享血池仍遵循原生规则。
 
