@@ -33,6 +33,6 @@ for(const folder of ['src','tools','dist'])for(const file of await readdir(join(
   if(file.endsWith('.mjs'))execFileSync(process.execPath,['--check',join(root,folder,file)]);
 }
 const setupHelp=execFileSync(process.execPath,[join(root,'configure.mjs'),'--help'],{encoding:'utf8'});
-if(!setupHelp.includes('--room-code')||!setupHelp.includes('ark.minyako.top'))throw new Error('Standalone configuration CLI is stale');
+if(!setupHelp.includes('--room-code')||!setupHelp.includes('--name')||!setupHelp.includes('ark.minyako.top'))throw new Error('Standalone configuration CLI is stale');
 if(process.env.RELEASE_TAG&&process.env.RELEASE_TAG!=='v'+metadata.version)throw new Error('Release tag must equal v'+metadata.version);
 console.log('Build/package contracts valid: '+metadata.name+'@'+metadata.version);

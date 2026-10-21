@@ -40339,6 +40339,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 var DEFAULT_SITE_URL = "https://ark.minyako.top";
+function normalizePlayerName(value) {
+  const name = String(value ?? "").trim();
+  if (name.length > 12) throw new Error("\u73A9\u5BB6\u540D\u6700\u591A 12 \u4E2A\u5B57\u7B26");
+  return name || "Ark Agent";
+}
 function normalizeSiteUrl(value) {
   const input2 = String(value ?? "").trim();
   if (!input2) return "";
@@ -40373,6 +40378,7 @@ function resolveConfig(config2 = {}, environment = process.env) {
   const env = Object.fromEntries(Object.entries({
     url: environment.ARK_AGENT_URL,
     roomCode: environment.ARK_AGENT_ROOM_CODE,
+    name: environment.ARK_AGENT_NAME,
     tokenFile: environment.ARK_AGENT_TOKEN_FILE,
     headersFile: environment.ARK_AGENT_HEADERS_FILE,
     sessionFile: environment.ARK_AGENT_SESSION_FILE
@@ -40380,6 +40386,7 @@ function resolveConfig(config2 = {}, environment = process.env) {
   const resolved = { ...defaults, ...env, ...config2 };
   resolved.url = normalizeSiteUrl(resolved.url || DEFAULT_SITE_URL);
   resolved.roomCode = normalizeRoomCode(resolved.roomCode);
+  resolved.name = normalizePlayerName(resolved.name);
   return resolved;
 }
 
@@ -40617,7 +40624,7 @@ var GameClient = class {
     this.config = resolveConfig(config2);
     config2 = this.config;
     this.url = config2.url || null;
-    this.name = String(config2.name || "Ark Agent").trim().slice(0, 12) || "Ark Agent";
+    this.name = config2.name;
     if (this.url) {
       const u = new URL(this.url);
       if (u.username || u.password || u.search || u.hash || u.pathname !== "/ws") throw new Error("Use the game site /ws URL without credentials/query/hash");
@@ -41177,8 +41184,8 @@ var package_default = {
     package: "node tools/package.mjs"
   },
   dependencies: {
-    "@modelcontextprotocol/sdk": "1.32.1",
-    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/a2c909381b10bc547cfb8854784b3955cc4de29b"
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/9f78fe076661fe7fa5f9625919d5c2a681d9ea4d",
+    "@modelcontextprotocol/sdk": "1.32.1"
   },
   devDependencies: {
     esbuild: "0.25.12"
@@ -41194,7 +41201,7 @@ var package_default = {
 import { fileURLToPath } from "node:url";
 var runtime = createCodexRuntime();
 var setup = fileURLToPath(new URL("../configure.mjs", import.meta.url));
-var instructions = INSTRUCTIONS + " Codex defaults to https://ark.minyako.top. An omitted roomCode uses saved client settings; an empty roomCode starts solo play. Saved settings are reread at a safe new-game boundary. To change defaults on user request, run node " + JSON.stringify(setup) + " --update --room-code AB12 (or --url https://site-host). Preserve existing credentials and do not start a game merely to configure settings.";
+var instructions = INSTRUCTIONS + " Codex defaults to https://ark.minyako.top. An omitted roomCode uses saved client settings; an empty roomCode starts solo play. Saved settings are reread at a safe new-game boundary. To change defaults on user request, run node " + JSON.stringify(setup) + ' --update --room-code AB12 (or --url https://site-host, or --name "\u73A9\u5BB6\u540D"). Player names accept up to 12 characters; an empty name restores Ark Agent. Changing the name retains the LLM controller declaration. Preserve existing credentials and do not start a game merely to configure settings.';
 var server = new McpServer({ name: "ark-play", version: package_default.version }, { instructions });
 for (const tool of runtime.tools) {
   server.registerTool(

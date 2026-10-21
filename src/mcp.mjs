@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 
 const runtime=createCodexRuntime();
 const setup=fileURLToPath(new URL('../configure.mjs',import.meta.url));
-const instructions=INSTRUCTIONS+' Codex defaults to https://ark.minyako.top. An omitted roomCode uses saved client settings; an empty roomCode starts solo play. Saved settings are reread at a safe new-game boundary. To change defaults on user request, run node '+JSON.stringify(setup)+' --update --room-code AB12 (or --url https://site-host). Preserve existing credentials and do not start a game merely to configure settings.';
+const instructions=INSTRUCTIONS+' Codex defaults to https://ark.minyako.top. An omitted roomCode uses saved client settings; an empty roomCode starts solo play. Saved settings are reread at a safe new-game boundary. To change defaults on user request, run node '+JSON.stringify(setup)+' --update --room-code AB12 (or --url https://site-host, or --name "玩家名"). Player names accept up to 12 characters; an empty name restores Ark Agent. Changing the name retains the LLM controller declaration. Preserve existing credentials and do not start a game merely to configure settings.';
 const server=new McpServer({name:'ark-play',version:metadata.version},{instructions});
 for(const tool of runtime.tools) {
   server.registerTool(tool.name,{description:tool.description,inputSchema:tool.schema,
