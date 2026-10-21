@@ -62,6 +62,6 @@ npm ci --ignore-scripts
 npm run build
 ```
 
-[DSH源码仓库](https://github.com/HarcoChen/dsh-ArkStronghold)固定依赖本仓库的明确Git提交；发布bundle内置共享代码，无需另装核心。发布步骤见PUBLISH.md。源码仓库：[ArkStrongholdCodex](https://github.com/HarcoChen/ArkStrongholdCodex)。本版通过GitHub源码与Release包分发，未发布npm包。
+[DSH源码仓库](https://github.com/HarcoChen/dsh-ArkStronghold)固定依赖本仓库的明确Git提交；发布bundle内置共享代码，无需另装核心。构建/打包CI覆盖Node22与24；每次提交/PR生成可下载的独立zip和摘要，发布GitHub Release后自动附加对应包。发布步骤见PUBLISH.md。源码仓库：[ArkStrongholdCodex](https://github.com/HarcoChen/ArkStrongholdCodex)。本版通过GitHub源码与Release包分发，未发布npm包。
 
 GPL-3.0-or-later，见LICENSE。构建附第三方许可，发布包附对应源码；不含游戏引擎副本、美术、模型、凭据或对局记录。站点代码/数据来自[Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol)，使用时遵守其许可和资源条款。Codex插件接口参照[官方MCP组件文档](https://developers.openai.com/plugins/build/mcp-server)。

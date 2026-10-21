@@ -7,7 +7,8 @@
     ".": "./src/tools.mjs",
     "./mcp": "./src/mcp.mjs",
     "./package.json": "./package.json",
-    "./build-notices": "./tools/notices.mjs"
+    "./build-notices": "./tools/notices.mjs",
+    "./build-package": "./tools/package.mjs"
   },
   "license": "GPL-3.0-or-later",
   "description": "Codex/DSH WSS gameplay client core; recording and access control belong to the game site",
@@ -16,7 +17,9 @@
   },
   "scripts": {
     "mcp": "node src/mcp.mjs",
-    "build": "node tools/build.mjs"
+    "build": "node tools/build.mjs",
+    "check:package": "node tools/check-package.mjs",
+    "package": "node tools/package.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

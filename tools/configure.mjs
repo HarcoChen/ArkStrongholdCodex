@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // Explicit user-invoked setup. Does not connect, install a plugin or print credentials.
 import {existsSync,mkdirSync,writeFileSync} from 'node:fs';
 import {resolve,dirname,join} from 'node:path';

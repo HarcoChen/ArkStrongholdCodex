@@ -2,11 +2,22 @@
 
 这是原生/ws客户端预览版，不发布旧0.1.0采集网关原型。
 
-1. 源码仓库分别为HarcoChen/ArkStrongholdCodex与HarcoChen/dsh-ArkStronghold。DSH固定核心Git提交，协议修正只维护核心一处。
-2. 两仓库相邻，分别npm ci --ignore-scripts；先在核心npm run build，再在DSH npm run build。
-3. 核心运行node tools/package.mjs /absolute/release-output。打包需要系统zip命令，客户端运行不需要。脚本拒绝覆盖已有归档，输出两个独立zip及SHA256清单。
-4. 在各仓库创建0.2.0-alpha.1预览Release并附对应zip。对应源码已附在zip，且仓库源码保留GPL许可；不提交游戏数据、凭据、轨迹、node_modules；dist运行文件与许可需随仓库提交，保证插件仓库安装可用。
-5. 安装指向解压目录。源码构建可分别克隆两仓库；DSH的npm ci会安装固定提交的核心，不依赖相邻目录。发布打包脚本则约定作者将两源码仓库相邻放置。
+## GitHub Actions
+
+- ci.yml：push、PR或手动运行，在Node22/24执行锁文件安装、构建、JS语法/插件元数据/入口核对和独立打包；Actions产物保留14天。不调用模型、游戏站或测试套件。
+- release.yml：发布GitHub Release后，用Node24重建并校验tag必须等于v+package.json.version，然后自动上传zip、SHA256和清单。目标提交必须含本工作流；安装包不依赖DSH相邻仓库。
+- Actions使用固定提交的官方checkout/setup-node/upload-artifact；常规CI只读权限，Release上传单独授予contents:write。
+
+本地复现：
+
+```sh
+npm ci --ignore-scripts
+npm run build
+npm run check:package
+npm run package -- results/releases
+```
+
+新版本同步package.json、package-lock.json、plugin.json、.codex-plugin/plugin.json并重建dist后提交。用当前提交创建对应v版本Tag和Release；已有资产不会被覆盖，失败重跑前检查同名资产。DSH独立打包与npm发布见其仓库说明。
 
 ## 可直接使用的Release说明
 

@@ -41051,9 +41051,48 @@ function createTools(config2 = {}) {
   } };
 }
 
+// package.json
+var package_default = {
+  name: "@harco/ark-play-core",
+  version: "0.2.0-alpha.1",
+  private: true,
+  type: "module",
+  exports: {
+    ".": "./src/tools.mjs",
+    "./mcp": "./src/mcp.mjs",
+    "./package.json": "./package.json",
+    "./build-notices": "./tools/notices.mjs",
+    "./build-package": "./tools/package.mjs"
+  },
+  license: "GPL-3.0-or-later",
+  description: "Codex/DSH WSS gameplay client core; recording and access control belong to the game site",
+  engines: {
+    node: ">=22"
+  },
+  scripts: {
+    mcp: "node src/mcp.mjs",
+    build: "node tools/build.mjs",
+    "check:package": "node tools/check-package.mjs",
+    package: "node tools/package.mjs"
+  },
+  dependencies: {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    ws: "8.22.0",
+    zod: "4.6.7"
+  },
+  devDependencies: {
+    esbuild: "0.25.12"
+  },
+  repository: {
+    type: "git",
+    url: "git+https://github.com/HarcoChen/ArkStrongholdCodex.git"
+  },
+  homepage: "https://github.com/HarcoChen/ArkStrongholdCodex"
+};
+
 // src/mcp.mjs
 var runtime = createTools();
-var server = new McpServer({ name: "ark-play", version: "0.2.0-alpha.1" }, { instructions: INSTRUCTIONS });
+var server = new McpServer({ name: "ark-play", version: package_default.version }, { instructions: INSTRUCTIONS });
 for (const tool of runtime.tools) {
   server.registerTool(
     tool.name,

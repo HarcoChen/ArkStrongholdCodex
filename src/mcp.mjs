@@ -1,9 +1,10 @@
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
 import {createTools,INSTRUCTIONS} from './tools.mjs';
+import metadata from '../package.json' with {type:'json'};
 
 const runtime=createTools();
-const server=new McpServer({name:'ark-play',version:'0.2.0-alpha.1'},{instructions:INSTRUCTIONS});
+const server=new McpServer({name:'ark-play',version:metadata.version},{instructions:INSTRUCTIONS});
 for(const tool of runtime.tools) {
   server.registerTool(tool.name,{description:tool.description,inputSchema:tool.schema,
     annotations:{readOnlyHint:!!tool.readOnly,destructiveHint:!!tool.destructive,openWorldHint:true}},

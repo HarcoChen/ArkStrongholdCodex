@@ -1,38 +1,45 @@
-// Package the two already-built clients and corresponding source. No site data.
-import {mkdtemp,mkdir,copyFile,cp,readdir,readFile,writeFile,rm} from 'node:fs/promises';
+// Standalone release packaging. No sibling checkout, game data or credentials.
+import {mkdtemp,mkdir,copyFile,cp,readFile,writeFile,rm,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {join,resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
-const core=fileURLToPath(new URL('../',import.meta.url)),dsh=resolve(core,'../ark-play-dsh');
-const metadata=JSON.parse(await readFile(join(core,'package.json'),'utf8'));
-const destination=resolve(process.argv[2]||join(core,'results/releases'));await mkdir(destination,{recursive:true});
-const scratch=await mkdtemp(join(tmpdir(),'ark-play-release-')),records={};
-async function source(from,to) {
+const SOURCE=['src','tools','index.mjs','package.json','package-lock.json','plugin.json','mcp.json','.codex-plugin',
+  'cordis.patch.yml','LICENSE','README.md','PUBLISH.md'];
+export async function copySource(from,to) {
   await mkdir(to,{recursive:true});
-  for(const entry of await readdir(from,{withFileTypes:true})) {
-    if(['.git','node_modules','dist','results'].includes(entry.name))continue;
-    await cp(join(from,entry.name),join(to,entry.name),{recursive:true});
+  for(const name of SOURCE) {
+    const path=join(from,name);try{await stat(path);}catch(e){if(e.code==='ENOENT')continue;throw e;}
+    await cp(path,join(to,name),{recursive:true});
   }
 }
-try {
-  for(const [name,repo] of [['ark-play-codex',core],['ark-play-dsh',dsh]]) {
+export async function packageClient({kind,root,sharedRoot=root,output}) {
+  if(!['codex','dsh'].includes(kind))throw new Error('Unknown client kind');
+  const metadata=JSON.parse(await readFile(join(root,'package.json'),'utf8'));
+  const name=kind==='codex'?'ark-play-codex':metadata.name.replace(/^@/,'').replaceAll('/','-');
+  const destination=resolve(output||join(root,'results/releases'));await mkdir(destination,{recursive:true});
+  const scratch=await mkdtemp(join(tmpdir(),'ark-play-release-'));
+  try {
     const stage=join(scratch,name);await mkdir(stage);
-    for(const file of ['README.md','LICENSE','PUBLISH.md'])await copyFile(join(repo,file),join(stage,file));
-    await copyFile(join(core,'tools/configure.mjs'),join(stage,'configure.mjs'));
-    if(name.endsWith('codex')) {
-      for(const file of ['plugin.json','mcp.json'])await copyFile(join(core,file),join(stage,file));
-      await cp(join(core,'.codex-plugin'),join(stage,'.codex-plugin'),{recursive:true});
-      await cp(join(core,'dist'),join(stage,'dist'),{recursive:true});
-    }else await cp(join(dsh,'dist'),stage,{recursive:true});
-    await source(core,join(stage,'corresponding-source/ark-play-codex'));
-    if(name.endsWith('dsh'))await source(dsh,join(stage,'corresponding-source/ark-play-dsh'));
+    for(const file of ['README.md','LICENSE','PUBLISH.md'])await copyFile(join(root,file),join(stage,file));
+    await copyFile(join(sharedRoot,'tools/configure.mjs'),join(stage,'configure.mjs'));
+    if(kind==='codex') {
+      for(const file of ['plugin.json','mcp.json'])await copyFile(join(root,file),join(stage,file));
+      await cp(join(root,'.codex-plugin'),join(stage,'.codex-plugin'),{recursive:true});
+      await cp(join(root,'dist'),join(stage,'dist'),{recursive:true});
+    }else await cp(join(root,'dist'),stage,{recursive:true});
+    await copySource(sharedRoot,join(stage,'corresponding-source/ark-play-core'));
+    if(kind==='dsh')await copySource(root,join(stage,'corresponding-source/dsh-plugin'));
     const path=join(destination,name+'-'+metadata.version+'.zip');
-    try{await readFile(path);throw new Error('Archive already exists: '+path);}catch(e){if(e.code!=='ENOENT')throw e;}
+    try{await stat(path);throw new Error('Archive already exists: '+path);}catch(e){if(e.code!=='ENOENT')throw e;}
     execFileSync('zip',['-q','-r',path,name],{cwd:scratch});
-    const bytes=await readFile(path);records[name]={path,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};
-  }
-  await writeFile(join(destination,'manifest-'+metadata.version+'.json'),JSON.stringify(records,null,2)+'\n');
-  console.log(JSON.stringify(records,null,2));
-}finally{await rm(scratch,{recursive:true,force:true});}
+    const bytes=await readFile(path),record={filename:path.split('/').at(-1),bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};
+    await writeFile(path+'.sha256',record.sha256+'  '+record.filename+'\n');
+    await writeFile(path+'.json',JSON.stringify(record,null,2)+'\n');
+    return record;
+  }finally{await rm(scratch,{recursive:true,force:true});}
+}
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
+  console.log(JSON.stringify(await packageClient({kind:'codex',root:fileURLToPath(new URL('../',import.meta.url)),output:process.argv[2]}),null,2));
+}
