@@ -15,5 +15,5 @@ export async function writeNotices(nodeModules,target) {
       if(files.some(f=>f.name==='node_modules'&&f.isDirectory()))await visit(join(dir,'node_modules'));
     }
   }
-  await visit(nodeModules);await writeFile(target,notices.join('\n\n----------------\n\n'));
+  await visit(nodeModules);await writeFile(target,notices.join('\n\n----------------\n\n').replace(/\r\n/g,'\n').replace(/[ \t]+$/gm,''));
 }
