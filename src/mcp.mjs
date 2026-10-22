@@ -2,6 +2,7 @@ import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
 import {INSTRUCTIONS} from '@arkstrongholdrl/ark-play-core';
 import {createCodexRuntime} from './runtime.mjs';
+import {withProgress} from './progress.mjs';
 import metadata from '../package.json' with {type:'json'};
 import {fileURLToPath} from 'node:url';
 
@@ -13,7 +14,7 @@ for(const tool of runtime.tools) {
   server.registerTool(tool.name,{description:tool.description,inputSchema:tool.schema,
     annotations:{readOnlyHint:!!tool.readOnly,destructiveHint:!!tool.destructive,openWorldHint:true}},
   async(args,extra)=>{
-    try {const value=await tool.execute(tool.schema.parse(args),extra.signal);return {content:[{type:'text',text:value.text}]};}
+    try {const value=await withProgress(extra,()=>tool.execute(tool.schema.parse(args),extra.signal));return {content:[{type:'text',text:value.text}]};}
     catch(error){return {isError:true,content:[{type:'text',text:String(error.message)}]};}
   });
 }

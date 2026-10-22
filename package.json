@@ -1,6 +1,6 @@
 {
   "name": "ark-play-codex",
-  "version": "0.2.0-alpha.3",
+  "version": "0.2.0-alpha.4",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
@@ -9,13 +9,14 @@
     "node": ">=22"
   },
   "scripts": {
+    "test": "node --test",
     "mcp": "node src/mcp.mjs",
     "build": "node tools/build.mjs",
     "check:package": "node tools/check-package.mjs",
     "package": "node tools/package.mjs"
   },
   "dependencies": {
-    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/9f8c86af67148039bf778b3e8767bdeea0d5a614",
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/5596e86ec948da58ca203b6eb5b30cba35a79b1e",
     "@modelcontextprotocol/sdk": "1.32.1"
   },
   "devDependencies": {

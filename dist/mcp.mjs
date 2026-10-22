@@ -40656,18 +40656,23 @@ var GameClient = class {
     this.combatQueue = [];
     this.authorities = /* @__PURE__ */ new Set();
     this.stateWaiters = /* @__PURE__ */ new Set();
+    this.stateVersion = 0;
+    this.roomClosed = null;
   }
   wake() {
+    this.stateVersion++;
     for (const notify of [...this.stateWaiters]) notify();
   }
   fail(message) {
     this.siteError = String(message);
     this.wake();
   }
-  changed(signal) {
+  changed(signal, since = this.stateVersion, timeout) {
     signal?.throwIfAborted();
     return new Promise((resolve, reject) => {
+      let timer;
       const cleanup = () => {
+        clearTimeout(timer);
         this.stateWaiters.delete(notify);
         signal?.removeEventListener("abort", abort);
       };
@@ -40681,7 +40686,9 @@ var GameClient = class {
       };
       this.stateWaiters.add(notify);
       signal?.addEventListener("abort", abort, { once: true });
+      if (timeout !== void 0) timer = setTimeout(notify, timeout);
       if (signal?.aborted) abort();
+      else if (since !== this.stateVersion) notify();
     });
   }
   update(key, value) {
@@ -40709,9 +40716,13 @@ var GameClient = class {
       this.sessionToken = m.token;
       this.myId = m.playerId;
       this.welcome = m;
-    } else if (m.t === "room.state") this.update("room", m);
-    else if (m.t === "room.closed") this.update("room", null);
-    else if (m.t === "m.public") {
+    } else if (m.t === "room.state") {
+      this.roomClosed = null;
+      this.update("room", m);
+    } else if (m.t === "room.closed") {
+      this.roomClosed = String(m.reason || "closed").slice(0, 80);
+      this.update("room", null);
+    } else if (m.t === "m.public") {
       this.update("pub", Object.fromEntries(PUBLIC_KEYS.filter((k) => k in m).map((k) => [k, m[k]])));
       this.site?.send("pause", { on: !!m.paused });
     } else if (m.t === "m.private") this.update("own", m);
@@ -40837,11 +40848,15 @@ var GameClient = class {
     this.request(message).catch((e) => this.fail("Site did not accept combat report: " + e.message));
   }
   // A native ack is not a state frame: coalesce the public/private push burst.
-  async quiet() {
-    const end = Date.now() + 500;
-    do {
-      await pause(30);
-    } while (Date.now() < end && Date.now() - this.lastPush < 60);
+  async quiet(signal) {
+    const start = Date.now(), end = start + 500;
+    for (; ; ) {
+      signal?.throwIfAborted();
+      const version2 = this.stateVersion, now = Date.now();
+      const remaining = Math.min(end - now, Math.max(start, this.lastPush) + 60 - now);
+      if (remaining <= 0) return;
+      await this.changed(signal, version2, remaining);
+    }
   }
   async view() {
     await this.quiet();
@@ -40850,16 +40865,18 @@ var GameClient = class {
     const map2 = await this.site.request("map", { pub: snapshot.pub, own: snapshot.own, myId: this.myId });
     return { ...projectNative({ ...snapshot, myId: this.myId, runtime: this.site, map: map2 }), ...this.siteError ? { notice: this.siteError } : {} };
   }
-  async settle(signal, readyRound) {
-    await this.quiet();
+  async settle(signal, readyRound, waitForStart = false) {
+    await this.quiet(signal);
     for (; ; ) {
       signal?.throwIfAborted();
+      if (this.result) return;
+      if (this.roomClosed) throw new Error("Room closed: " + this.roomClosed + "; waiting stopped. Do not poll or automatically rejoin");
       if (this.siteError) throw new Error(this.siteError + "; recover with ark_view, do not repeat accepted actions");
       if (!this.ws || this.ws.readyState !== wrapper_default.OPEN) throw new Error("Connection lost during settlement; recover with ark_view, do not repeat accepted actions");
       const oldPrep = readyRound !== void 0 && this.pub?.round === readyRound && this.pub?.phase === "PREP" && !this.own?.personalChoice;
-      if (this.result || this.pub?.paused || !this.room?.inMatch && !this.pub || !oldPrep && canAct(this.pub, this.own, this.myId, this.result)) return;
+      if (!waitForStart && !this.room && !this.pub || !oldPrep && canAct(this.pub, this.own, this.myId, this.result)) return;
       await this.changed(signal);
-      await this.quiet();
+      await this.quiet(signal);
     }
   }
   normalize(action2) {
@@ -40912,6 +40929,7 @@ var GameClient = class {
         this.result = null;
         this.pub = null;
         this.own = null;
+        this.roomClosed = null;
         this.combatQueue = [];
         this.authorities.clear();
         this.revision++;
@@ -40925,7 +40943,7 @@ var GameClient = class {
           await this.request({ t: "room.create", mode: "solo", difficulty: payload.difficulty || "ABYSS" });
           await this.request({ t: "room.start" });
         }
-        await this.settle(signal);
+        await this.settle(signal, void 0, true);
         return await this.view();
       }
       if (payload.op === "lookup") {
@@ -41051,7 +41069,7 @@ function render(reply, previous = null, force = false) {
   }
   if (v.setup) lines.push(`\u5F00\u5C40: ${short(v.setup)}`);
   if (reply.notice) lines.push(`\u7AD9\u70B9/\u5BA2\u6237\u7AEF\u72B6\u6001: ${reply.notice}`);
-  if (v.paused) lines.push("\u6E38\u620F\u7AD9\u5DF2\u6682\u505C\uFF1A\u8BF7\u5728\u7AD9\u70B9\u6062\u590D\u540E\u8C03\u7528 ark_view\uFF1B\u5F53\u524D\u5DE5\u5177\u4E0D\u4F1A\u7ED3\u675F\u51C6\u5907\u6216\u8DF3\u8FC7\u6682\u505C\u3002");
+  if (v.paused) lines.push("\u6E38\u620F\u7AD9\u5DF2\u6682\u505C\uFF1A\u8C03\u7528\u4E00\u6B21 ark_view \u4F1A\u7B49\u5F85\u6062\u590D\u53CA\u4E0B\u4E00\u51B3\u7B56\uFF1B\u4E0D\u8981\u53CD\u590D\u8F6E\u8BE2\u3002");
   if (v.me.handEmpty.length === 0) lines.push("\u624B\u724C\u5DF2\u6EE1\uFF1A\u5148\u88C5\u5907/\u51FA\u552E/\u5904\u7406\u5E93\u5B58\u624D\u80FD\u8D2D\u4E70\u6216\u9886\u53D6\u9700\u7A7A\u4F4D\u7684\u5956\u52B1\u3002");
   if (v.terminal) lines.push(`\u7ED3\u7B97: ${short(v.outcome)}`);
   lines.push(`\u53EF\u8C03\u7528: ${v.available.join(", ")}\u3002\u52A8\u4F5C\u6709\u76EE\u6807\u7EA6\u675F\uFF0C\u4ECD\u53EF\u80FD\u88AB\u5F15\u64CE\u62D2\u7EDD\u3002`);
@@ -41082,7 +41100,7 @@ var action = external_exports.discriminatedUnion("type", [
   }),
   external_exports.object({ type: external_exports.literal("ready"), ready: external_exports.literal(true).optional() })
 ]);
-var INSTRUCTIONS = "Play only on user request. ark_start joins the configured game site over its native /ws protocol and starts solo play, or joins a specified room and readies up for its host. Read the compact view and submit explicit actions with the latest local snapshot revision and a short purpose. The revision is a client precondition, not a server atomic lock. The server can reject stale choices or illegal targets. Batches stop on rejection or phase/round changes and never continue into another round. After ready, the plugin computes and reports combat internally and returns the next player decision or terminal result; no wait tool or polling is needed. ark_view also completes pending settlement when recovering an uncertain action. Cancellation or disconnection does not undo accepted actions; recover with ark_view before issuing another action. Native battle simulation is isolated from model observations. The site owns authentication, pacing, recording and persistence. This plugin never collects or downloads trajectories.";
+var INSTRUCTIONS = "Play only on user request. ark_start joins the configured game site over its native /ws protocol and starts solo play, or joins a specified room and readies up for its host. Gameplay calls stay pending while waiting for the host, teammates, another player turn, combat or site resume; WS events wake the same call only when a player decision, terminal result or error is available. Do not poll, sleep then repeatedly call ark_view, or repeat ark_start while waiting. Read the compact view and submit explicit actions with the latest local snapshot revision and a short purpose. The revision is a client precondition, not a server atomic lock. The server can reject stale choices or illegal targets. Batches stop on rejection or phase/round changes and never continue into another round. After ready, the plugin computes and reports combat internally and returns the next player decision or terminal result. ark_view also waits for a decision when recovering an uncertain action. Cancellation or disconnection does not undo accepted actions; recover once with ark_view before issuing another action. A closed room ends the wait and must not be automatically rejoined. Native battle simulation is isolated from model observations. The site owns authentication, pacing, recording and persistence. This plugin never collects or downloads trajectories.";
 function createTools(config2 = {}) {
   const client = new GameClient(config2);
   let previous = null;
@@ -41095,20 +41113,20 @@ function createTools(config2 = {}) {
   const tools = [
     {
       name: "ark_start",
-      description: "\u5F00\u5355\u4EBA\u5C40\uFF0C\u6216\u6309 roomCode \u52A0\u5165\u5DF2\u6709\u623F\u95F4\u5E76\u51C6\u5907\uFF0C\u7B49\u5F85\u623F\u4E3B\u5F00\u59CB\u3002\u623F\u95F4\u53F7\u7559\u7A7A\u5F00\u5355\u4EBA\u5C40\uFF1B\u52A0\u5165\u65F6\u96BE\u5EA6\u7531\u623F\u95F4\u51B3\u5B9A\u3002",
+      description: "\u5F00\u5355\u4EBA\u5C40\uFF0C\u6216\u6309 roomCode \u52A0\u5165\u5DF2\u6709\u623F\u95F4\u5E76\u51C6\u5907\u3002\u7B49\u5F85\u623F\u4E3B\u5F00\u59CB\u3001\u961F\u53CB\u53CA\u81EA\u5DF1\u7684\u51B3\u7B56\u65F6\u673A\u65F6\uFF0C\u672C\u6B21\u8C03\u7528\u4FDD\u6301\u6302\u8D77\uFF0C\u7531 WS \u4E8B\u4EF6\u5524\u9192\u540E\u8FD4\u56DE\uFF1B\u4E0D\u8981\u8F6E\u8BE2\u6216\u91CD\u590D\u5F00\u5C40\u3002\u623F\u95F4\u53F7\u7559\u7A7A\u5F00\u5355\u4EBA\u5C40\uFF1B\u52A0\u5165\u65F6\u96BE\u5EA6\u7531\u623F\u95F4\u51B3\u5B9A\u3002",
       schema: external_exports.object({ difficulty: external_exports.enum(["ABYSS", "NORMAL", "HARD"]).default("ABYSS"), roomCode: external_exports.string().trim().toUpperCase().regex(/^(?:[A-Z0-9]{4})?$/).optional().describe("\u56DB\u4F4D\u623F\u95F4\u53F7\uFF1B\u7701\u7565\u4F7F\u7528\u5BA2\u6237\u7AEF\u914D\u7F6E\uFF0C\u7A7A\u5B57\u7B26\u4E32\u5F00\u5355\u4EBA\u5C40") }),
       execute: async (args, signal) => show(await client.call({ op: "start", difficulty: args.difficulty, roomCode: args.roomCode ?? client.config.roomCode }, signal), true)
     },
     {
       name: "ark_view",
-      description: "\u6062\u590D\u5B8C\u6574\u7D27\u51D1\u5C40\u9762\uFF1B\u82E5\u6B63\u5728\u7ED3\u7B97\uFF0C\u63D2\u4EF6\u5185\u90E8\u5904\u7406\u81F3\u4E0B\u4E00\u51B3\u7B56\u6216\u7EC8\u5C40\u518D\u8FD4\u56DE\u3002\u7528\u4E8E\u4E0A\u4E0B\u6587\u4E22\u5931\u3001\u65AD\u7EBF\u91CD\u8FDE\u6216\u52A8\u4F5C\u7ED3\u679C\u4E0D\u786E\u5B9A\u3002",
+      description: "\u6062\u590D\u5B8C\u6574\u7D27\u51D1\u5C40\u9762\u3002\u8054\u673A\u7B49\u5F85\u3001\u522B\u4EBA\u56DE\u5408\u3001\u6218\u6597\u6216\u6682\u505C\u671F\u95F4\uFF0C\u672C\u6B21\u8C03\u7528\u4FDD\u6301\u6302\u8D77\uFF0C\u76D1\u542C WS \u76F4\u5230\u81EA\u5DF1\u7684\u4E0B\u4E00\u51B3\u7B56\u3001\u7EC8\u5C40\u6216\u9519\u8BEF\uFF1B\u65E0\u9700\u53CD\u590D\u8C03\u7528\u3002\u7528\u4E8E\u4E0A\u4E0B\u6587\u4E22\u5931\u3001\u65AD\u7EBF\u91CD\u8FDE\u6216\u52A8\u4F5C\u7ED3\u679C\u4E0D\u786E\u5B9A\u3002",
       schema: external_exports.object({}),
       readOnly: true,
       execute: async (_, signal) => show(await client.call({ op: "view" }, signal), true)
     },
     {
       name: "ark_act",
-      description: "\u6309\u5F53\u524D\u672C\u5730\u5FEB\u7167revision\u6267\u884C1\u81F38\u6B65\u660E\u786E\u52A8\u4F5C\u3002\u62D2\u7EDD\u6216\u9636\u6BB5/\u56DE\u5408\u6539\u53D8\u5373\u505C\u6B62\u672C\u6279\uFF1Bready\u540E\u81EA\u52A8\u5B8C\u6210\u6218\u6597\u8BA1\u7B97\u3001\u4E0A\u62A5\u548C\u7ED3\u7B97\uFF0C\u8FD4\u56DE\u4E0B\u4E00\u51B3\u7B56\u5C40\u9762\u6216\u7EC8\u5C40\uFF0C\u4E0D\u9700\u8F6E\u8BE2\u3002\u7AD9\u70B9\u6682\u505C\u65F6\u8FD4\u56DE\u6682\u505C\u63D0\u793A\u3002",
+      description: "\u6309\u5F53\u524D\u672C\u5730\u5FEB\u7167revision\u6267\u884C1\u81F38\u6B65\u660E\u786E\u52A8\u4F5C\u3002\u62D2\u7EDD\u6216\u9636\u6BB5/\u56DE\u5408\u6539\u53D8\u5373\u505C\u6B62\u672C\u6279\uFF1B\u9700\u8981\u7B49\u961F\u53CB\u3001\u522B\u4EBA\u56DE\u5408\u3001\u6218\u6597\u7ED3\u7B97\u6216\u6682\u505C\u6062\u590D\u65F6\uFF0C\u7531 WS \u4E8B\u4EF6\u9A71\u52A8\u4FDD\u6301\u6302\u8D77\uFF0C\u76F4\u5230\u81EA\u5DF1\u7684\u4E0B\u4E00\u51B3\u7B56\u3001\u7EC8\u5C40\u6216\u9519\u8BEF\u624D\u8FD4\u56DE\uFF1B\u4E0D\u8981\u8F6E\u8BE2\u3002ready \u540E\u81EA\u52A8\u5904\u7406\u6218\u6597\u8BA1\u7B97\u3001\u4E0A\u62A5\u4E0E\u7ED3\u7B97\u3002",
       schema: external_exports.object({ revision: index, steps: external_exports.array(external_exports.object({ action, reason: external_exports.string().min(1).max(400) })).min(1).max(8) }),
       execute: async (args, signal) => show(await client.call({ op: "act", ...args }, signal))
     },
@@ -41169,10 +41187,39 @@ function createCodexRuntime(config2 = {}) {
   } };
 }
 
+// src/progress.mjs
+async function withProgress(extra, run, intervalMs = 15e3) {
+  const token = extra._meta?.progressToken;
+  if (token === void 0) return run();
+  let progress = 0, sending = false, stopped = false;
+  const timer = setInterval(async () => {
+    if (stopped || sending || extra.signal?.aborted) return;
+    sending = true;
+    try {
+      await extra.sendNotification({ method: "notifications/progress", params: { progressToken: token, progress: ++progress, message: "\u5DE5\u5177\u4ECD\u5728\u8FD0\u884C\uFF1B\u6B63\u5728\u76D1\u542C\u6E38\u620F\u7AD9\u4E8B\u4EF6\uFF0C\u65E0\u9700\u8F6E\u8BE2\u3002" } });
+    } catch {
+    } finally {
+      sending = false;
+    }
+  }, intervalMs);
+  timer.unref?.();
+  const stop = () => {
+    stopped = true;
+    clearInterval(timer);
+  };
+  extra.signal?.addEventListener("abort", stop, { once: true });
+  try {
+    return await run();
+  } finally {
+    stop();
+    extra.signal?.removeEventListener("abort", stop);
+  }
+}
+
 // package.json
 var package_default = {
   name: "ark-play-codex",
-  version: "0.2.0-alpha.3",
+  version: "0.2.0-alpha.4",
   private: true,
   type: "module",
   license: "GPL-3.0-or-later",
@@ -41181,13 +41228,14 @@ var package_default = {
     node: ">=22"
   },
   scripts: {
+    test: "node --test",
     mcp: "node src/mcp.mjs",
     build: "node tools/build.mjs",
     "check:package": "node tools/check-package.mjs",
     package: "node tools/package.mjs"
   },
   dependencies: {
-    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/9f8c86af67148039bf778b3e8767bdeea0d5a614",
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/5596e86ec948da58ca203b6eb5b30cba35a79b1e",
     "@modelcontextprotocol/sdk": "1.32.1"
   },
   devDependencies: {
@@ -41216,7 +41264,7 @@ for (const tool of runtime.tools) {
     },
     async (args, extra) => {
       try {
-        const value = await tool.execute(tool.schema.parse(args), extra.signal);
+        const value = await withProgress(extra, () => tool.execute(tool.schema.parse(args), extra.signal));
         return { content: [{ type: "text", text: value.text }] };
       } catch (error62) {
         return { isError: true, content: [{ type: "text", text: String(error62.message) }] };
