@@ -41023,7 +41023,7 @@ var GameClient = class {
       await this.settle(signal, readyRound);
       return { ...await this.view(), executed, ...!executed.length ? { notice: "\u5F53\u524D\u6CA1\u6709\u53EF\u63D0\u4EA4\u7684\u73A9\u5BB6\u51B3\u7B56\uFF1B\u672C\u6279\u672A\u6267\u884C\uFF0C\u8BF7\u4F9D\u636E\u65B0\u5C40\u9762\u91CD\u65B0\u9009\u62E9\u3002" } : {} };
     } catch (e) {
-      if (signal?.aborted) this.uncertain = true;
+      if (signal?.aborted && payload.op !== "combat") this.uncertain = true;
       throw e;
     } finally {
       this.inCall = false;
@@ -41257,7 +41257,7 @@ var package_default = {
     package: "node tools/package.mjs"
   },
   dependencies: {
-    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/aea58dd9987c11a6cc255cdd139a9c679e024292",
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/7450e17f37138e9d3a8636b1f345e094a98b1693",
     "@modelcontextprotocol/sdk": "1.32.1"
   },
   devDependencies: {
