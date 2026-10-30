@@ -41241,7 +41241,7 @@ async function withProgress(extra, run, intervalMs = 15e3) {
 // package.json
 var package_default = {
   name: "ark-play-codex",
-  version: "0.2.0-alpha.7",
+  version: "0.2.1",
   private: true,
   type: "module",
   license: "GPL-3.0-or-later",

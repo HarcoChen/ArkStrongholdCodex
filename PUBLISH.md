@@ -83,3 +83,11 @@ result match direct native simulation (damage 12100, taken 135, healing 135);
 Worker takeover/interruption, unavailable remote fields and new-match reset.
 Host build/package audits and Node 22/24 CI accompany this candidate.
 No tag, Release, npm publication or installed-profile replacement in this step.
+
+## Release v0.2.1 (2026-10-30)
+
+Publish the prepared combat statistics implementation as v0.2.1, pinned to
+Core 7450e17f37138e9d3a8636b1f345e094a98b1693. Includes default-version game
+0.3.3 compatibility, `ark_combat` damage/taken/healing/shares and round-end
+review in the bundled skill. Existing source and package validation is retained;
+this release changes version metadata and packaging, not gameplay behavior.
