@@ -27,7 +27,7 @@ if (identity.simHashOf(index.simFiles) !== index.sim || identity.contentHashOf({
   plugins: index.plugins,
   settings: index.settings
 }) !== index.cs) throw new Error("Upstream content identity mismatch");
-if (constants.PROTOCOL_VERSION !== 1 || !["0.3.0", "0.3.1"].includes(constants.APP_VERSION) || constants.APP_VERSION !== index.app) throw new Error("Unsupported upstream protocol/application version");
+if (constants.PROTOCOL_VERSION !== 1 || !["0.3.0", "0.3.1", "0.3.2", "0.3.3"].includes(constants.APP_VERSION) || constants.APP_VERSION !== index.app) throw new Error("Unsupported upstream protocol/application version");
 function freeze(value) {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
     Object.freeze(value);

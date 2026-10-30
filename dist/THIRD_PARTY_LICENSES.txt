@@ -1,4 +1,4 @@
-@arkstrongholdrl/ark-play-core@0.2.0-alpha.3 (GPL-3.0-or-later)
+@arkstrongholdrl/ark-play-core@0.2.0-alpha.4 (GPL-3.0-or-later)
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 

@@ -13,6 +13,10 @@ for(const path of ['plugin.json','.codex-plugin/plugin.json']) {
 }
 if(portable.$schema!=='https://agent-plugins.org/schemas/1.0.0/plugin.schema.json')throw new Error('Portable manifest schema mismatch');
 if(!portable.extensions?.['com.openai']?.requires_local_executor||!compatibility.requires_local_executor)throw new Error('Local execution requirement missing');
+if(compatibility.skills!=='./skills/')throw new Error('Bundled skills path mismatch');
+for(const file of ['SKILL.md','agents/openai.yaml','references/COVENANT-PLAYBOOK.md','references/MERGE-SEARCH-STRATEGY.md']) {
+  if(!(await stat(join(root,'skills/ark-covenant-playbook',file))).size)throw new Error('Missing bundled skill resource: '+file);
+}
 if(compatibility.mcpServers!=='./mcp.json')throw new Error('Compatibility MCP path mismatch');
 const display=portable.extensions['com.openai'].interface;
 if(JSON.stringify(display)!==JSON.stringify(compatibility.interface))throw new Error('Portable OpenAI metadata overrides compatibility metadata; keep them aligned');
@@ -26,7 +30,7 @@ if(entry.name!==portable.name||entry.source?.source!=='local'||entry.source.path
 if(entry.policy?.installation!=='AVAILABLE'||entry.policy.authentication!=='ON_INSTALL'||entry.category!==display.category)throw new Error('Marketplace policy/category mismatch');
 const mcp=JSON.parse(await readFile(join(root,'mcp.json'),'utf8'));
 if(mcp.mcpServers?.ark?.type!=='stdio'||mcp.mcpServers.ark.command!=='node'||mcp.mcpServers.ark.args?.[0]!=='${PLUGIN_ROOT}/dist/mcp.mjs'||mcp.mcpServers.ark.cwd!=='${PLUGIN_ROOT}')throw new Error('MCP entry mismatch');
-for(const file of ['configure.mjs','dist/mcp.mjs','dist/site-worker.mjs','dist/site-loader.mjs','dist/THIRD_PARTY_LICENSES.txt','corresponding-source/ark-play-core/src/tools.mjs','corresponding-source/ark-play-core/PROVENANCE.md']) {
+for(const file of ['docs/COMBAT-AND-MULTIROLE-DESIGN.md','configure.mjs','dist/mcp.mjs','dist/site-worker.mjs','dist/site-loader.mjs','dist/THIRD_PARTY_LICENSES.txt','corresponding-source/ark-play-core/src/tools.mjs','corresponding-source/ark-play-core/PROVENANCE.md']) {
   if(!(await stat(join(root,file))).size)throw new Error('Missing runtime artifact: '+file);
 }
 for(const folder of ['src','tools','dist'])for(const file of await readdir(join(root,folder))) {

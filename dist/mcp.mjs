@@ -40433,6 +40433,7 @@ var SiteRuntime = class {
     if (!/^[a-f0-9]{64}$/.test(cs)) throw new Error("Site did not publish a supported content identity");
     const index2 = JSON.parse(await readSite(this.origin + "/cs/" + cs.slice(0, 16) + "/index.json", this.headers, 1024 * 1024));
     if (index2.cs !== cs || index2.v !== 1 || index2.vanilla !== true || !index2.simFiles || !index2.data || index2.plugins?.length) throw new Error("Only the site vanilla content protocol v1 is supported");
+    if (index2.version) throw new Error("Historical-version rooms are not supported by this client; use the default version");
     const raw = Object.fromEntries(await Promise.all(FILES.map(async (key) => {
       const ref = index2.data[key];
       if (!ref) throw new Error("Site data missing: " + key);
@@ -40918,6 +40919,7 @@ var GameClient = class {
         return { status: "left", storage: "managed-by-game-site" };
       }
       if (this.room?.content?.vanilla === false) throw new Error("Gameplay plugin content sets are not supported by this client version");
+      if (this.room?.version) throw new Error("Historical-version rooms are not supported by this client; use the default version");
       if (payload.op === "view") {
         await this.settle(signal);
         const result = await this.view();
@@ -40938,6 +40940,7 @@ var GameClient = class {
           if (!/^[A-Z0-9]{4}$/.test(code)) throw new Error("Expected a four-character room code");
           await this.request({ t: "room.join", code });
           if (this.room?.content?.vanilla === false) throw new Error("Gameplay plugin content sets are not supported by this client version");
+          if (this.room?.version) throw new Error("Historical-version rooms are not supported by this client; use the default version");
           await this.request({ t: "room.ready", ready: true });
         } else {
           await this.request({ t: "room.create", mode: "solo", difficulty: payload.difficulty || "ABYSS" });
@@ -41219,7 +41222,7 @@ async function withProgress(extra, run, intervalMs = 15e3) {
 // package.json
 var package_default = {
   name: "ark-play-codex",
-  version: "0.2.0-alpha.4",
+  version: "0.2.0-alpha.6",
   private: true,
   type: "module",
   license: "GPL-3.0-or-later",
@@ -41235,7 +41238,7 @@ var package_default = {
     package: "node tools/package.mjs"
   },
   dependencies: {
-    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/5596e86ec948da58ca203b6eb5b30cba35a79b1e",
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/6eae6865467e5df4b363ac6ee84f2314ecda4a17",
     "@modelcontextprotocol/sdk": "1.32.1"
   },
   devDependencies: {

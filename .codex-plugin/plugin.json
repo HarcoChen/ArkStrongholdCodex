@@ -1,6 +1,6 @@
 {
   "name": "ark-play",
-  "version": "0.2.0-alpha.4",
+  "version": "0.2.0-alpha.6",
   "description": "卫戍协议对局工具：单人、指定房间、紧凑局面与自动战斗结算。",
   "author": {
     "name": "HarcoChen",
@@ -38,5 +38,6 @@
       "把默认房间号设为 AB12，下次开局使用；保留已有站点和凭据配置。"
     ],
     "brandColor": "#4ed8af"
-  }
+  },
+  "skills": "./skills/"
 }
