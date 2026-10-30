@@ -91,3 +91,12 @@ Core 7450e17f37138e9d3a8636b1f345e094a98b1693. Includes default-version game
 0.3.3 compatibility, `ark_combat` damage/taken/healing/shares and round-end
 review in the bundled skill. Existing source and package validation is retained;
 this release changes version metadata and packaging, not gameplay behavior.
+
+## Release v0.2.2 (2026-10-30)
+
+Increase public-client module initialization from 60 to 180 seconds for slow
+networks. Terminate failed startup workers and reject early worker exits.
+The pinned Core is unchanged; a guarded build-time host patch is included in
+both the runtime bundle and corresponding source. Seven host tests cover
+progress, startup success, timeout, worker failure/exit and patch drift.
+Windows/network reproduction remains unverified.

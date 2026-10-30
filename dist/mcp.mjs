@@ -40448,14 +40448,14 @@ var SiteRuntime = class {
     const worker = new Worker(new URL("./site-worker.mjs", import.meta.url), { workerData: { origin: this.origin, headers: this.headers, index: index2, raw, playerId } });
     this.worker = worker;
     this.ready = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Upstream client loading timed out")), 6e4);
+      const timeout = setTimeout(() => reject(new Error("Upstream client loading timed out after 180 seconds")), 18e4);
       worker.on("error", (e) => {
         clearTimeout(timeout);
         reject(e);
         this.fail(e.message);
       });
       worker.on("exit", (code) => {
-        if (code !== 0) {
+        if (this.worker === worker) {
           clearTimeout(timeout);
           reject(new Error("Upstream worker exited"));
           this.fail("Upstream worker exited");
@@ -40476,6 +40476,9 @@ var SiteRuntime = class {
           }
         }
       });
+    }).catch(async (error62) => {
+      await this.close();
+      throw error62;
     });
     return this;
   }
@@ -41241,7 +41244,7 @@ async function withProgress(extra, run, intervalMs = 15e3) {
 // package.json
 var package_default = {
   name: "ark-play-codex",
-  version: "0.2.1",
+  version: "0.2.2",
   private: true,
   type: "module",
   license: "GPL-3.0-or-later",
