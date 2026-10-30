@@ -40429,7 +40429,7 @@ var SiteRuntime = class {
     this.pending = /* @__PURE__ */ new Map();
     this.counter = 0;
   }
-  async load(cs) {
+  async load(cs, playerId) {
     if (!/^[a-f0-9]{64}$/.test(cs)) throw new Error("Site did not publish a supported content identity");
     const index2 = JSON.parse(await readSite(this.origin + "/cs/" + cs.slice(0, 16) + "/index.json", this.headers, 1024 * 1024));
     if (index2.cs !== cs || index2.v !== 1 || index2.vanilla !== true || !index2.simFiles || !index2.data || index2.plugins?.length) throw new Error("Only the site vanilla content protocol v1 is supported");
@@ -40445,7 +40445,7 @@ var SiteRuntime = class {
     })));
     this.raw = raw;
     this.index = index2;
-    const worker = new Worker(new URL("./site-worker.mjs", import.meta.url), { workerData: { origin: this.origin, headers: this.headers, index: index2, raw } });
+    const worker = new Worker(new URL("./site-worker.mjs", import.meta.url), { workerData: { origin: this.origin, headers: this.headers, index: index2, raw, playerId } });
     this.worker = worker;
     this.ready = await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("Upstream client loading timed out")), 6e4);
@@ -40768,6 +40768,7 @@ var GameClient = class {
         }
       });
       ws.on("close", (code) => {
+        this.site?.send("interrupt");
         if (this.ws === ws) {
           this.ws = null;
           this.welcome = null;
@@ -40798,7 +40799,7 @@ var GameClient = class {
         const site = new SiteRuntime(this.origin, this.headers, (m) => this.report(m), (e) => this.fail(e));
         this.site = site;
         try {
-          await site.load(cs);
+          await site.load(cs, this.myId);
         } catch (e) {
           await site.close();
           this.site = null;
@@ -40910,6 +40911,15 @@ var GameClient = class {
         await this.close();
         return { status: "expired-session-acknowledged" };
       }
+      if (payload.op === "combat") {
+        if (this.sessionLost || !this.site?.ready || !this.pub) return { status: "unavailable", reason: "no_local_match_runtime" };
+        if (this.siteError) return { status: "unavailable", reason: "local_runtime_failed" };
+        const fighting = ["COMBAT", "UNITE", "FINAL_ASSAULT", "HIDDEN_CORE", "SETTLE"].includes(this.pub.phase);
+        if (!this.result && (fighting || this.pub.paused)) return { status: "pending", reason: "round_not_settled", doNotPoll: true };
+        const throughRound = Math.max(0, (this.pub.round || 0) - (this.result ? 0 : 1));
+        if (!throughRound) return { status: "unavailable", reason: "no_completed_round" };
+        return await this.site.request("combat", { query: { scope: payload.scope, throughRound } });
+      }
       await this.connect(payload.op !== "finish");
       if (this.uncertain && !["view", "finish"].includes(payload.op)) throw new Error("Use ark_view to resync the uncertain action outcome");
       if (payload.op === "finish") {
@@ -40928,6 +40938,7 @@ var GameClient = class {
       }
       if (payload.op === "start") {
         if (this.room?.inMatch) throw new Error("A site game is already running; use ark_view or explicitly finish");
+        this.site?.send("resetCombat");
         this.result = null;
         this.pub = null;
         this.own = null;
@@ -41074,6 +41085,7 @@ function render(reply, previous = null, force = false) {
   if (reply.notice) lines.push(`\u7AD9\u70B9/\u5BA2\u6237\u7AEF\u72B6\u6001: ${reply.notice}`);
   if (v.paused) lines.push("\u6E38\u620F\u7AD9\u5DF2\u6682\u505C\uFF1A\u8C03\u7528\u4E00\u6B21 ark_view \u4F1A\u7B49\u5F85\u6062\u590D\u53CA\u4E0B\u4E00\u51B3\u7B56\uFF1B\u4E0D\u8981\u53CD\u590D\u8F6E\u8BE2\u3002");
   if (v.me.handEmpty.length === 0) lines.push("\u624B\u724C\u5DF2\u6EE1\uFF1A\u5148\u88C5\u5907/\u51FA\u552E/\u5904\u7406\u5E93\u5B58\u624D\u80FD\u8D2D\u4E70\u6216\u9886\u53D6\u9700\u7A7A\u4F4D\u7684\u5956\u52B1\u3002");
+  if (full && (v.terminal || v.round > 1)) lines.push(`\u56DE\u5408\u590D\u76D8: \u64CD\u4F5C\u524D\u8C03\u7528\u4E00\u6B21 ark_combat \u67E5\u770B\u7B2C${v.terminal ? v.round : v.round - 1}\u8F6E\u4F24\u5BB3\uFF0F\u627F\u4F24\uFF0F\u6CBB\u7597\u5360\u6BD4\uFF1B\u6570\u636E\u7F3A\u5931\u4E0D\u8F6E\u8BE2\u3002`);
   if (v.terminal) lines.push(`\u7ED3\u7B97: ${short(v.outcome)}`);
   lines.push(`\u53EF\u8C03\u7528: ${v.available.join(", ")}\u3002\u52A8\u4F5C\u6709\u76EE\u6807\u7EA6\u675F\uFF0C\u4ECD\u53EF\u80FD\u88AB\u5F15\u64CE\u62D2\u7EDD\u3002`);
   return lines.join("\n");
@@ -41103,7 +41115,7 @@ var action = external_exports.discriminatedUnion("type", [
   }),
   external_exports.object({ type: external_exports.literal("ready"), ready: external_exports.literal(true).optional() })
 ]);
-var INSTRUCTIONS = "Play only on user request. ark_start joins the configured game site over its native /ws protocol and starts solo play, or joins a specified room and readies up for its host. Gameplay calls stay pending while waiting for the host, teammates, another player turn, combat or site resume; WS events wake the same call only when a player decision, terminal result or error is available. Do not poll, sleep then repeatedly call ark_view, or repeat ark_start while waiting. Read the compact view and submit explicit actions with the latest local snapshot revision and a short purpose. The revision is a client precondition, not a server atomic lock. The server can reject stale choices or illegal targets. Batches stop on rejection or phase/round changes and never continue into another round. After ready, the plugin computes and reports combat internally and returns the next player decision or terminal result. ark_view also waits for a decision when recovering an uncertain action. Cancellation or disconnection does not undo accepted actions; recover once with ark_view before issuing another action. A closed room ends the wait and must not be automatically rejoined. Native battle simulation is isolated from model observations. The site owns authentication, pacing, recording and persistence. This plugin never collects or downloads trajectories.";
+var INSTRUCTIONS = "Play only on user request. ark_start joins the configured game site over its native /ws protocol and starts solo play, or joins a specified room and readies up for its host. Gameplay calls stay pending while waiting for the host, teammates, another player turn, combat or site resume; WS events wake the same call only when a player decision, terminal result or error is available. Do not poll, sleep then repeatedly call ark_view, or repeat ark_start while waiting. Read the compact view and submit explicit actions with the latest local snapshot revision and a short purpose. The revision is a client precondition, not a server atomic lock. The server can reject stale choices or illegal targets. Batches stop on rejection or phase/round changes and never continue into another round. After ready, the plugin computes and reports combat internally and returns the next player decision or terminal result. ark_view also waits for a decision when recovering an uncertain action. Cancellation or disconnection does not undo accepted actions; recover once with ark_view before issuing another action. A closed room ends the wait and must not be automatically rejoined. After each settled round and before the next decision, call ark_combat once to review damage, damage taken, healing and shares. Do not poll it during combat. Missing or partial local metrics are not zero performance; interpret them alongside the current board and enemy preview. Native battle simulation is isolated from model observations; only completed-round summary counters are exposed. The site owns authentication, pacing, recording and persistence. This plugin never collects or downloads trajectories.";
 function createTools(config2 = {}) {
   const client = new GameClient(config2);
   let previous = null;
@@ -41139,6 +41151,13 @@ function createTools(config2 = {}) {
       schema: external_exports.object({ kind: external_exports.enum(["chess", "tokens", "items", "bonds", "bands", "garrisons", "bosses"]), id: external_exports.string().max(120).optional(), text: external_exports.string().max(100).optional(), limit: external_exports.number().int().min(1).max(8).default(3) }),
       readOnly: true,
       execute: async (args, signal) => ({ text: JSON.stringify((await client.call({ op: "lookup", query: args }, signal)).result) })
+    },
+    {
+      name: "ark_combat",
+      description: "\u67E5\u8BE2\u5DF2\u7ED3\u675F\u4E0A\u4E00\u56DE\u5408\uFF08\u542B\u8054\u9632\uFF09\u6216\u672C\u5C40\u5DF2\u7ED3\u675F\u56DE\u5408\u7684\u4F24\u5BB3\u3001\u627F\u4F24\u3001\u6709\u6548\u6CBB\u7597\u3001DPS/HPS\u548C\u73A9\u5BB6\uFF0F\u5E72\u5458\u5360\u6BD4\u3002\u4EC5\u8BFB\u53D6\u672C\u5BA2\u6237\u7AEF\u5B9E\u9645\u6A21\u62DF\u7684\u6218\u573A\uFF1B\u63A5\u7BA1\u3001\u91CD\u8FDE\u91CD\u5EFA\u3001\u7F3A\u5931\u3001\u622A\u65AD\u660E\u786E\u6807\u8BB0\u3002\u6BCF\u56DE\u5408\u7ED3\u7B97\u8FD4\u56DE\u540E\u3001\u4E0B\u8F6E\u64CD\u4F5C\u524D\u8C03\u7528\u4E00\u6B21\uFF1B\u6218\u6597\u4E2D\u4E0D\u8F6E\u8BE2\u3002",
+      schema: external_exports.object({ scope: external_exports.enum(["last", "match"]).default("last") }),
+      readOnly: true,
+      execute: async (args, signal) => ({ text: JSON.stringify(await client.call({ op: "combat", scope: args.scope }, signal)) })
     },
     {
       name: "ark_finish",
@@ -41222,7 +41241,7 @@ async function withProgress(extra, run, intervalMs = 15e3) {
 // package.json
 var package_default = {
   name: "ark-play-codex",
-  version: "0.2.0-alpha.6",
+  version: "0.2.0-alpha.7",
   private: true,
   type: "module",
   license: "GPL-3.0-or-later",
@@ -41238,7 +41257,7 @@ var package_default = {
     package: "node tools/package.mjs"
   },
   dependencies: {
-    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/6eae6865467e5df4b363ac6ee84f2314ecda4a17",
+    "@arkstrongholdrl/ark-play-core": "https://codeload.github.com/ArkStrongholdRL/ark-play-core/tar.gz/aea58dd9987c11a6cc255cdd139a9c679e024292",
     "@modelcontextprotocol/sdk": "1.32.1"
   },
   devDependencies: {

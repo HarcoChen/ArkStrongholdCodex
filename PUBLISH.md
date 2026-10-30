@@ -66,3 +66,20 @@ Huawei 已于 15:39 手动切换到运行修订 47cdf5f447241aae581e6d56c78827b1
 本仓库更新候选是 0.2.0-alpha.6，Core 固定 6eae6865467e5df4b363ac6ee84f2314ecda4a17。候选保留现有 bundled skill／打包工作，并纳入可独立安装的 ZIP 和对应源码。
 公开 HTTPS health 与首页已核对为 0.3.3，保留备案。插件仍只有五个工具；统计／录像、多角色只是设计稿。
 先等更新分支的 Node 22/24 CI 通过，再从经过校验的提交创建 v0.2.0-alpha.6 预览 Release。发布工作流上传重建 ZIP／摘要；不覆盖现有同名资产。
+
+## 2026-10-30: settled-round combat metrics candidate
+
+Current candidate: 0.2.0-alpha.7, pinned Core aea58dd9987c11a6cc255cdd139a9c679e024292 (0.2.0-alpha.5).
+Six shared tools now include `ark_combat({scope:'last'|'match'})`: damage, damage
+taken, effective healing, shares and player DPS/HPS from completed native
+simulations. Summons are credited to their operator. Missing, taken-over,
+reconstructed and interrupted fields are explicit; coverage is local fields,
+not a server-wide ranking. No active-round counters, frame logs or replay.
+Both host skills require one read after each settled round before the next
+action, and before finishing terminal review. No polling for missing metrics.
+
+Validated: 15 Core tests; local 0.3.3 Worker counters and full compact battle
+result match direct native simulation (damage 12100, taken 135, healing 135);
+Worker takeover/interruption, unavailable remote fields and new-match reset.
+Host build/package audits and Node 22/24 CI accompany this candidate.
+No tag, Release, npm publication or installed-profile replacement in this step.
