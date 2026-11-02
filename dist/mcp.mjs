@@ -40603,6 +40603,15 @@ function projectNative({ pub, own: own2, myId, result, revision, room, runtime: 
 }
 
 // node_modules/@arkstrongholdrl/ark-play-core/src/rpc.mjs
+function sameDecisionPublic(before, after, myId, own2) {
+  if (!myId || own2?.playerId !== myId || own2.personalChoice || before?.phase !== "PREP" || after?.phase !== "PREP" || before.round !== after.round || !Array.isArray(before.players) || !Array.isArray(after.players) || !before.players.some((p) => p.playerId === myId) || !after.players.some((p) => p.playerId === myId)) return false;
+  const scope = (pub) => ({ ...pub, players: pub.players.map((player) => {
+    if (player.playerId === myId) return player;
+    const { shopLevel, boardCount, bonds, ...guarded } = player;
+    return guarded;
+  }) });
+  return JSON.stringify(scope(before)) === JSON.stringify(scope(after));
+}
 var pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 var PUBLIC_KEYS = [
   "phase",
@@ -40697,8 +40706,9 @@ var GameClient = class {
   }
   update(key, value) {
     if (JSON.stringify(this[key]) !== JSON.stringify(value)) {
+      const unchanged = key === "pub" && sameDecisionPublic(this.pub, value, this.myId, this.own);
       this[key] = value;
-      this.revision++;
+      if (!unchanged) this.revision++;
     }
     this.lastPush = Date.now();
     this.wake();
@@ -40821,13 +40831,15 @@ var GameClient = class {
       this.connecting = null;
     }
   }
-  request(message) {
+  request(message, expectedRevision, signal) {
     const ws = this.ws, rid = ++this.rid;
     const sent = this.sendTail.catch(() => {
     }).then(async () => {
       await pause(Math.max(0, this.nextSend - Date.now()));
       this.nextSend = Date.now() + 40;
       if (!ws || ws !== this.ws || ws.readyState !== wrapper_default.OPEN) throw new Error("Game connection unavailable");
+      signal?.throwIfAborted();
+      if (expectedRevision !== void 0 && (expectedRevision !== this.revision || this.uncertain || this.roomClosed || this.replaced || this.sessionLost || this.siteError || !canAct(this.pub, this.own, this.myId, this.result))) throw Object.assign(new Error("Local decision changed before send"), { code: "LOCAL_STATE_CHANGED" });
       return await new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           this.pending.delete(rid);
@@ -41003,16 +41015,18 @@ var GameClient = class {
         if (invalid) throw new Error("Unsupported native intent; batch not sent: " + invalid);
       }
       if (payload.revision !== this.revision) return { ...await this.view(), error: "STALE_CLIENT_SNAPSHOT", executed: [] };
+      this.revision++;
       const executed = [];
       let readyRound;
       for (const step of payload.steps) {
         signal?.throwIfAborted();
         if (!canAct(this.pub, this.own, this.myId, this.result)) break;
+        const expectedRevision = this.revision, choiceId = this.own?.personalChoice?.id;
         const phase = this.pub.phase, round = this.pub.round, message = this.normalize(step.action);
         const invalid = await this.site.request("validate", { message });
         if (invalid) throw new Error("Unsupported native intent: " + invalid);
         try {
-          await this.request(message);
+          await this.request(message, expectedRevision, signal);
           executed.push({ action: step.action, reason: step.reason, accepted: true });
           if (step.action.type === "ready") readyRound = round;
         } catch (e) {
@@ -41021,7 +41035,7 @@ var GameClient = class {
           break;
         }
         await this.quiet();
-        if (readyRound !== void 0 || this.pub.phase !== phase || this.pub.round !== round || this.result || !canAct(this.pub, this.own, this.myId, this.result)) break;
+        if (choiceId !== this.own?.personalChoice?.id || readyRound !== void 0 || this.pub.phase !== phase || this.pub.round !== round || this.result || !canAct(this.pub, this.own, this.myId, this.result)) break;
       }
       await this.settle(signal, readyRound);
       return { ...await this.view(), executed, ...!executed.length ? { notice: "\u5F53\u524D\u6CA1\u6709\u53EF\u63D0\u4EA4\u7684\u73A9\u5BB6\u51B3\u7B56\uFF1B\u672C\u6279\u672A\u6267\u884C\uFF0C\u8BF7\u4F9D\u636E\u65B0\u5C40\u9762\u91CD\u65B0\u9009\u62E9\u3002" } : {} };
@@ -41244,7 +41258,7 @@ async function withProgress(extra, run, intervalMs = 15e3) {
 // package.json
 var package_default = {
   name: "ark-play-codex",
-  version: "0.2.2",
+  version: "0.2.3",
   private: true,
   type: "module",
   license: "GPL-3.0-or-later",
