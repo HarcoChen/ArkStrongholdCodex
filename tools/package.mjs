@@ -1,6 +1,6 @@
 // Codex release staging includes the plugin's bundled skills and their sources.
 import {copySource} from '@arkstrongholdrl/ark-play-core/build-package';
-import {patchSiteRuntime} from './core-patches.mjs';
+import {patchSiteRuntime,patchRpcRuntime} from './core-patches.mjs';
 import {mkdtemp,mkdir,cp,readFile,writeFile,rm,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
@@ -25,6 +25,8 @@ try {
   await copySource(sharedRoot,join(stage,'corresponding-source/ark-play-core'));
   const siteSource=join(stage,'corresponding-source/ark-play-core/src/site.mjs');
   await writeFile(siteSource,patchSiteRuntime(await readFile(siteSource,'utf8')));
+  const rpcSource=join(stage,'corresponding-source/ark-play-core/src/rpc.mjs');
+  await writeFile(rpcSource,patchRpcRuntime(await readFile(rpcSource,'utf8')));
   await cp(join(root,'corresponding-source/ark-play-core/PROVENANCE.md'),join(stage,'corresponding-source/ark-play-core/PROVENANCE.md'));
   const source=join(stage,'corresponding-source/codex-plugin');
   await copySource(root,source);
